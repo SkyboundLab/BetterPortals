@@ -25,4 +25,15 @@ public class VersionUtilTests {
         assertFalse(VersionUtil.isVersionGreaterOrEq("1.13.1", "1.13.2"));
         assertFalse(VersionUtil.isVersionGreaterOrEq("1.12", "1.12.2"));
     }
+
+    @Test
+    public void newVersioningTest() {
+        // The 26.x versioning scheme must compare correctly against both itself and 1.x versions
+        assertTrue(VersionUtil.isVersionGreaterOrEq("26.3-R0.1-SNAPSHOT", "1.21.0"));
+        assertTrue(VersionUtil.isVersionGreaterOrEq("26.3-R0.1-SNAPSHOT", "1.19.0"));
+        assertTrue(VersionUtil.isVersionGreaterOrEq("26.3", "26.3"));
+        assertTrue(VersionUtil.isVersionGreaterOrEq("26.3", "26.2"));
+        assertFalse(VersionUtil.isVersionGreaterOrEq("26.3", "26.4"));
+        assertFalse(VersionUtil.isVersionGreaterOrEq("1.21", "26.1"));
+    }
 }

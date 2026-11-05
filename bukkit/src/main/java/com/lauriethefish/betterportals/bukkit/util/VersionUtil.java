@@ -3,14 +3,11 @@ package com.lauriethefish.betterportals.bukkit.util;
 import org.bukkit.Bukkit;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
-/**
- * Various parts of the plugin need different implementations based on the minecraft version.
- */
+/** Various parts of the plugin need different implementations based on the minecraft version. */
 public class VersionUtil {
     // Cache since it's not super cheap to check if we're above a version
     private static final ConcurrentMap<String, Boolean> versionAtLeastCache = new ConcurrentHashMap<>();
@@ -22,49 +19,42 @@ public class VersionUtil {
     /**
      * Finds if the version represented by <code>versionStr</code> is greater than or equal to <code>otherStr</code>/
      * E.g. this would return false for "1.8.9" and "1.9.0", but true for "1.13.0" and "1.12.2".
+     * Works for both old (1.x) and new (26.x) version numbering, since it only compares the numeric segments.
      * @param versionStr Version to test if greater
      * @param otherStr Other version
      * @return Whether <code>versionStr</code> is greater than or equal.
      */
     public static boolean isVersionGreaterOrEq(String versionStr, String otherStr) {
-        String[] version = splitVersionString(versionStr);
-        String[] other = splitVersionString(otherStr);
-        // If the other version has more numbers, it must be newer
-        if(other.length > version.length) {return false;}
+        int[] version = splitVersionString(versionStr);
+        int[] other = splitVersionString(otherStr);
 
-        for(int i = 0; i < version.length; i++) {
-            int number = Integer.parseInt(version[i]);
-            if(i >= other.length) {
-                return true;
+        for (int i = 0; i < other.length; i++) {
+            // If this version has no more numbers but the other does, this version is older
+            if (i >= version.length) {
+                return false;
             }
 
-            // If one of then numbers in the other version is greater than this one, return false
-            int otherNumber = Integer.parseInt(other[i]);
-            if(otherNumber > number) {return false;}
-
-            // If one of the numbers in this version is greater than the other one, return true
-            if(number > otherNumber) {return true;}
+            if (version[i] != other[i]) {
+                return version[i] > other[i];
+            }
         }
 
-        // If all numbers are equal, return true
+        // If all numbers in the other version are equal, this version is >= it
         return true;
     }
 
-    private static String[] splitVersionString(String version) {
-        String[] result = version.split("\\.");
-        List<String> finalResult = new ArrayList<>();
+    private static int[] splitVersionString(String version) {
+        List<Integer> numbers = new ArrayList<>();
 
-        // Also split by dashes
-        for(String str : result) {
-            finalResult.addAll(Arrays.asList(str.split("-")));
+        for (String part : version.split("[^0-9]+")) {
+            if (part.isEmpty()) {
+                continue;
+            }
+
+            numbers.add(Integer.parseInt(part));
         }
 
-        // Remove "R" characters from the version
-        for(int i = 0; i < finalResult.size(); i++) {
-            finalResult.set(i, finalResult.get(i).replace("R", ""));
-        }
-
-        return finalResult.toArray(new String[0]);
+        return numbers.stream().mapToInt(Integer::intValue).toArray();
     }
 
     /**
@@ -74,7 +64,7 @@ public class VersionUtil {
      */
     public static boolean isMcVersionAtLeast(String version) {
         Boolean existing = versionAtLeastCache.get(version);
-        if(existing != null) {return existing;}
+        if (existing != null) { return existing; }
 
         boolean result = isVersionGreaterOrEq(getCurrentVersion(), version);
         versionAtLeastCache.put(version, result);

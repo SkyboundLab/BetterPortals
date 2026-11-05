@@ -9,11 +9,11 @@ import com.lauriethefish.betterportals.bukkit.entity.faking.EntityInfo;
 import com.lauriethefish.betterportals.bukkit.entity.faking.IEntityPacketManipulator;
 import com.lauriethefish.betterportals.bukkit.net.IPortalClient;
 import com.lauriethefish.betterportals.bukkit.net.requests.TestForwardedRequest;
-import com.lauriethefish.betterportals.bukkit.nms.BlockDataUtil;
 import com.lauriethefish.betterportals.bukkit.portal.spawning.NewPortalChecker;
 import com.lauriethefish.betterportals.bukkit.util.MaterialUtil;
 import com.lauriethefish.betterportals.bukkit.util.performance.OperationTimer;
 import com.lauriethefish.betterportals.shared.net.RequestException;
+import org.bukkit.Bukkit;
 import org.bukkit.Chunk;
 import org.bukkit.block.BlockState;
 import org.bukkit.block.data.BlockData;
@@ -31,7 +31,7 @@ public class TestingCommands {
     private final NewPortalChecker spawnChecker;
     private final IEntityPacketManipulator entityPacketManipulator;
     private final IPortalClient portalClient;
-    private List<Integer> storedData;
+    private List<String> storedData;
 
     @Inject
     public TestingCommands(NewPortalChecker spawnChecker, IEntityPacketManipulator entityPacketManipulator, IPortalClient portalClient) {
@@ -108,14 +108,14 @@ public class TestingCommands {
     @Path("betterportals/test/serializeBlocks")
     @RequiresPlayer
     public boolean doTestSerialization(Player player) {
-        List<Integer> result = new ArrayList<>();
+        List<String> result = new ArrayList<>();
 
         OperationTimer timer = new OperationTimer();
         for(int x = -10; x < 10; x++) {
             for(int y = -10; y < 10; y++) {
                 for(int z = -10; z < 10; z++) {
                     BlockData blockData = player.getLocation().add(x, y, z).getBlock().getBlockData();
-                    result.add(BlockDataUtil.getCombinedId(blockData));
+                    result.add(blockData.getAsString());
                 }
             }
         }
@@ -134,8 +134,8 @@ public class TestingCommands {
         for(int x = -10; x < 10; x++) {
             for(int y = -10; y < 10; y++) {
                 for(int z = -10; z < 10; z++) {
-                    int storedCombinedId = storedData.get(i);
-                    BlockData blockData = BlockDataUtil.getByCombinedId(storedCombinedId);
+                    String storedBlockData = storedData.get(i);
+                    BlockData blockData = Bukkit.createBlockData(storedBlockData);
 
                     player.getLocation().add(x, y, z).getBlock().setBlockData(blockData);
 

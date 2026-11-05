@@ -1,18 +1,12 @@
 plugins {
-    id 'net.minecrell.plugin-yml.bungee' version '0.5.2'
-}
-
-repositories {
-    mavenCentral()
-    maven { url = 'https://oss.sonatype.org/content/repositories/snapshots' }
-    maven { url = 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
+    id 'net.minecrell.plugin-yml.bungee' version '0.6.0'
 }
 
 dependencies {
-    implementation 'org.bstats:bstats-bungeecord:3.0.0'
+    implementation 'org.bstats:bstats-bungeecord:3.2.1'
     implementation project(':shared')
     implementation project(':proxy')
-    compileOnly 'net.md-5:bungeecord-api:1.19-R0.1-SNAPSHOT'
+    compileOnly 'net.md-5:bungeecord-api:26.1-R0.1-SNAPSHOT'
 }
 
 bungee {

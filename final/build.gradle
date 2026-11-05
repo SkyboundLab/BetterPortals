@@ -1,5 +1,5 @@
 plugins {
-    id 'com.github.johnrengelman.shadow' version '7.1.2'
+    id 'com.gradleup.shadow' version '9.6.1'
 }
 
 dependencies {
@@ -10,17 +10,12 @@ dependencies {
     implementation project(':velocity')
 }
 
-def static getImplementationConfigurations(parentProject) {
-    parentProject.configurations.implementation.canBeResolved = true
-    return parentProject.configurations.implementation
+base {
+    archivesName = "${rootProject.name}"
 }
-
-archivesBaseName = "${rootProject.name}"
 
 tasks.build.dependsOn tasks.shadowJar
 shadowJar {
-    configurations = [getImplementationConfigurations(project), getImplementationConfigurations(project(':bukkit'))]
-
     relocate 'org.bstats', 'com.lauriethefish.betterportals.dependencies.org.bstats'
     relocate 'org.aopalliance', 'com.lauriethefish.betterportals.dependencies.aopalliance'
     relocate 'org.checkerframework', 'com.lauriethefish.betterportals.dependencies.checkerframework'

@@ -12,7 +12,7 @@ import com.lauriethefish.betterportals.bukkit.block.IViewableBlockInfo;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.lang.reflect.InvocationTargetException;
+
 import java.util.HashMap;
 import java.util.Map;
 
@@ -91,8 +91,8 @@ public class MultiBlockChangeManager_1_16_2 implements IMultiBlockChangeManager 
             packet.getShortArrays().writeSafely(0, positions);
 
             try {
-                ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
-            }   catch(InvocationTargetException ex) {
+                ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
+            }   catch(Exception ex) {
                 ex.printStackTrace();
             }
         }

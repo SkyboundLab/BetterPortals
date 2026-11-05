@@ -117,7 +117,7 @@ public class BukkitBlockMap extends FloodFillBlockMap {
                 logger.finer("Adding tile state to map . . .");
                 Block destBlock = destPos.getBlock(Objects.requireNonNull(portal.getDestPos().getWorld()));
 
-                PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(destBlock.getState());
+                PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(destBlock);
                 if(updatePacket != null) {
                     BlockDataUtil.setTileEntityPosition(updatePacket, originPos);
 
@@ -127,7 +127,7 @@ public class BukkitBlockMap extends FloodFillBlockMap {
 
             if(MaterialUtil.isTileEntity(originBlock.getType()))  {
                 logger.finer("Adding tile state to map . . .");
-                PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(originBlock.getState());
+                PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(originBlock);
                 if(updatePacket != null) {
                     originTileStates.put(originPos, updatePacket);
                 }
@@ -239,7 +239,7 @@ public class BukkitBlockMap extends FloodFillBlockMap {
                 if (MaterialUtil.isTileEntity(newDestData.getMaterial())) {
                     Block destBlock = destPos.getBlock(Objects.requireNonNull(portal.getDestPos().getWorld()));
 
-                    PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(destBlock.getState());
+                    PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(destBlock);
                     if(updatePacket != null) {
                         BlockDataUtil.setTileEntityPosition(updatePacket, blockInfo.getOriginPos());
 
@@ -251,7 +251,7 @@ public class BukkitBlockMap extends FloodFillBlockMap {
             Block originBlock = blockInfo.getOriginPos().getBlock(originWorld);
             BlockData newOriginData = originBlock.getBlockData();
             if(MaterialUtil.isTileEntity(originBlock.getType()))  {
-                PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(originBlock.getState());
+                PacketContainer updatePacket = BlockDataUtil.getUpdatePacket(originBlock);
                 if(updatePacket != null) {
                     originTileStates.put(blockInfo.getOriginPos(), updatePacket);
                 }

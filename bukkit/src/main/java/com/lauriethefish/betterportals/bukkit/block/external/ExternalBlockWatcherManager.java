@@ -41,7 +41,7 @@ public class ExternalBlockWatcherManager implements IExternalBlockWatcherManager
         lastRequested.put(request.getChangeSetId(), Instant.now());
 
         Response response = new Response();
-        Map<IntVector, Integer> changes = watcher.checkForChanges();
+        Map<IntVector, String> changes = watcher.checkForChanges();
         logger.finer("Change count: %d", changes.size());
 
         response.setResult(changes);

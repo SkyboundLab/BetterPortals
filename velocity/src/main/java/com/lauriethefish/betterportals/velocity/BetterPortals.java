@@ -12,7 +12,7 @@ import com.velocitypowered.api.event.proxy.ProxyInitializeEvent;
 import com.velocitypowered.api.event.proxy.ProxyShutdownEvent;
 import org.slf4j.Logger;
 
-import javax.inject.Inject;
+import jakarta.inject.Inject;
 
 public class BetterPortals {
     private final Injector injector;
@@ -64,7 +64,7 @@ public class BetterPortals {
         IClientHandler to = portalServer.getServer(event.getServer().getServerInfo().getName());
 
         String previousServerName = event.getPreviousServer().get().getServerInfo().getName();
-        IClientHandler from = portalServer.getServer(event.getServer().getServerInfo().getName());
+        IClientHandler from = portalServer.getServer(previousServerName);
 
         if(from == null) {
             logger.debug("From server was unregistered for server switch event, skipping");

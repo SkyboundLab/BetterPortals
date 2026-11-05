@@ -10,15 +10,15 @@ import com.google.inject.Singleton;
 import com.lauriethefish.betterportals.bukkit.math.MathUtil;
 import com.lauriethefish.betterportals.bukkit.nms.AnimationType;
 import com.lauriethefish.betterportals.bukkit.nms.EntityUtil;
+import com.lauriethefish.betterportals.bukkit.nms.PacketFactory;
 import com.lauriethefish.betterportals.bukkit.nms.RotationUtil;
-import com.lauriethefish.betterportals.bukkit.util.VersionUtil;
 import org.bukkit.Location;
 import org.bukkit.Material;
 import org.bukkit.entity.*;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.util.Vector;
 
-import java.lang.reflect.InvocationTargetException;
+
 import java.util.*;
 
 
@@ -28,11 +28,6 @@ import java.util.*;
  */
 @Singleton
 public class EntityPacketManipulator implements IEntityPacketManipulator {
-    private static final boolean useHideEntityArray = !VersionUtil.isMcVersionAtLeast("1.17.0") && !VersionUtil.isMcVersionAtLeast("1.17.1");
-    private static final boolean useHideEntityList = VersionUtil.isMcVersionAtLeast("1.17.1");
-    private static final int entityDataFieldIndex = VersionUtil.isMcVersionAtLeast("1.19.0") ? 4 : 6;
-    private static final boolean useNewEntityRotationFields = VersionUtil.isMcVersionAtLeast("1.19.0");
-
     @Override
     public void showEntity(EntityInfo tracker, Collection<Player> players) {
         // Generate the packet that NMS would normally use to spawn the entity
@@ -70,29 +65,21 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
         sendMetadata(tracker, players);
     }
 
+    // Since 1.19 all entities are spawned with the SPAWN_ENTITY packet, which uses doubles for position
     private Vector getPositionFromSpawnPacket(PacketContainer packet) {
-        if(packet.getType() == PacketType.Play.Server.SPAWN_ENTITY_PAINTING) {
-            BlockPosition blockPos = packet.getBlockPositionModifier().read(0);
-            return blockPos.toVector();
-        }   else    {
-            StructureModifier<Double> doubles = packet.getDoubles();
-            return new Vector(
-                doubles.read(0),
-                doubles.read(1),
-                doubles.read(2)
-            );
-        }
+        StructureModifier<Double> doubles = packet.getDoubles();
+        return new Vector(
+            doubles.read(0),
+            doubles.read(1),
+            doubles.read(2)
+        );
     }
 
     private void writePositionToSpawnPacket(PacketContainer packet, Vector position) {
-        if(packet.getType() == PacketType.Play.Server.SPAWN_ENTITY_PAINTING) {
-            packet.getBlockPositionModifier().write(0, new BlockPosition(position));
-        }   else    {
-            StructureModifier<Double> doubles = packet.getDoubles();
-            doubles.write(0, position.getX());
-            doubles.write(1, position.getY());
-            doubles.write(2, position.getZ());
-        }
+        StructureModifier<Double> doubles = packet.getDoubles();
+        doubles.write(0, position.getX());
+        doubles.write(1, position.getY());
+        doubles.write(2, position.getZ());
     }
 
     // Every packet handles spawn rotation differently for whatever reason
@@ -104,80 +91,40 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
         int yaw = RotationUtil.getPacketRotationInt(renderedPos.getYaw());
         int pitch = RotationUtil.getPacketRotationInt(renderedPos.getPitch());
 
-        PacketType packetType = packet.getType();
-        if(packetType == PacketType.Play.Server.SPAWN_ENTITY_PAINTING) {
-            StructureModifier<EnumWrappers.Direction> directions = packet.getDirections();
-            EnumWrappers.Direction currentDirection = directions.read(0);
-            EnumWrappers.Direction rotated = RotationUtil.rotateBy(currentDirection, entityInfo.getRotation());
-            // Make sure to catch this - it should never happen unless something's gone very wrong
-            if (rotated == null) {
-                throw new IllegalStateException("Portal attempted to rotate painting to an invalid block direction");
-            }
+        // Hanging entities (e.g. item frames and paintings) use block faces for their rotation
+        if(entityInfo.getEntity() instanceof Hanging) {
+            // The spawn packet stores the 3D direction ID as its last integer field (after the entity ID)
+            StructureModifier<Integer> integers = packet.getIntegers();
+            int dataIndex = integers.size() - 1;
+            EnumWrappers.Direction currentDirection = RotationUtil.getDirection(integers.read(dataIndex));
 
-            directions.write(0, rotated);
-        }   else if(packetType == PacketType.Play.Server.SPAWN_ENTITY)  {
-            // Hanging entities use block faces for their rotation
-            if(entityInfo.getEntity() instanceof Hanging) {
-                // Minecraft deals with this as the ID of the direction as an int for item frames
-                // RotationUtil has some convenient methods for dealing with this
-                EnumWrappers.Direction currentDirection = RotationUtil.getDirection(packet.getIntegers().read(entityDataFieldIndex));
-                if(currentDirection != null) {
-                    EnumWrappers.Direction rotated = RotationUtil.rotateBy(currentDirection, entityInfo.getRotation());
-                    // Make sure to catch this - it should never happen unless something's gone very wrong
-                    if (rotated == null) {
-                        throw new IllegalStateException("Portal attempted to rotate a hanging entity to an invalid block direction");
-                    }
-                    packet.getIntegers().write(entityDataFieldIndex, RotationUtil.getId(rotated));
+            if(currentDirection != null) {
+                EnumWrappers.Direction rotated = RotationUtil.rotateBy(currentDirection, entityInfo.getRotation());
+                // Make sure to catch this - it should never happen unless something's gone very wrong
+                if (rotated == null) {
+                    throw new IllegalStateException("Portal attempted to rotate a hanging entity to an invalid block direction");
                 }
+                integers.write(dataIndex, RotationUtil.getId(rotated));
             }
-
-            // Set the modified pitch and yaw
-            if (useNewEntityRotationFields) {
-                packet.getBytes().write(0, (byte) pitch);
-                packet.getBytes().write(1, (byte) yaw);
-            } else {
-                packet.getIntegers().write(4, pitch);
-                packet.getIntegers().write(5, yaw);
-            }
-        }   else if(packetType == PacketType.Play.Server.SPAWN_ENTITY_LIVING) {
-            packet.getBytes().write(0, (byte) pitch);
-            packet.getBytes().write(1, (byte) yaw);
-            packet.getBytes().write(2, (byte) yaw);
-        }   else if(packetType == PacketType.Play.Server.NAMED_ENTITY_SPAWN) {
-            packet.getBytes().write(0, (byte) yaw);
-            packet.getBytes().write(1, (byte) pitch);
         }
+
+        // Set the modified pitch and yaw (xRot, yRot)
+        packet.getBytes().write(0, (byte) pitch);
+        packet.getBytes().write(1, (byte) yaw);
     }
 
     @Override
     public void hideEntity(EntityInfo tracker, Collection<Player> players) {
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_DESTROY);
-
-        if(useHideEntityArray) {
-            packet.getIntegerArrays().write(0, new int[]{tracker.getEntityId()});
-        }   else  if(useHideEntityList) {
-            packet.getIntLists().write(0, Collections.singletonList(tracker.getEntityId()));
-        } else  {
-            packet.getIntegers().write(0, tracker.getEntityId());
-        }
-        sendPacket(packet, players);
+        // The remove entities packet format changed in 26.x, so we construct it directly
+        sendNmsPacket(PacketFactory.removeEntities(tracker.getEntityId()), players);
     }
 
     @Override
     public void sendEntityMove(EntityInfo tracker, Vector offset, Collection<Player> players) {
         offset = tracker.getRotation().transform(offset);
 
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.REL_ENTITY_MOVE);
-        packet.getIntegers().write(0, tracker.getEntityId());
-
-        // We need to convert to the short location, since minecraft is weird and does it like this
-        StructureModifier<Short> shorts = packet.getShorts();
-        shorts.write(0, (short) (offset.getX() * 4096));
-        shorts.write(1, (short) (offset.getY() * 4096));
-        shorts.write(2, (short) (offset.getZ() * 4096));
-        packet.getBooleans().write(0, tracker.getEntity().isOnGround());
-
-        sendPacket(packet, players);
+        // We need to convert to the *4096 encoding, like the game does
+        sendNmsPacket(PacketFactory.moveEntity(tracker.getEntityId(), offset, tracker.getEntity().isOnGround()), players);
     }
 
     @Override
@@ -185,22 +132,10 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
         Location entityPos = tracker.findRenderedLocation();
         offset = tracker.getRotation().transform(offset); // Make sure to transform the given offset so that it's correct for the rendered position
 
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.REL_ENTITY_MOVE_LOOK);
-        packet.getIntegers().write(0, tracker.getEntityId());
+        int yaw = RotationUtil.getPacketRotationInt(entityPos.getYaw());
+        int pitch = RotationUtil.getPacketRotationInt(entityPos.getPitch());
 
-        // Minecraft is dumb and uses bytes for this (why... just use a float jeb)
-        StructureModifier<Byte> bytes = packet.getBytes();
-        bytes.write(0, (byte) RotationUtil.getPacketRotationInt(entityPos.getYaw()));
-        bytes.write(1, (byte) RotationUtil.getPacketRotationInt(entityPos.getPitch()));
-
-        // We need to convert to the short location, since minecraft is weird and does it like this
-        StructureModifier<Short> shorts = packet.getShorts();
-        shorts.write(0, (short) (offset.getX() * 4096));
-        shorts.write(1, (short) (offset.getY() * 4096));
-        shorts.write(2, (short) (offset.getZ() * 4096));
-        packet.getBooleans().write(0, tracker.getEntity().isOnGround());
-
-        sendPacket(packet, players);
+        sendNmsPacket(PacketFactory.moveLookEntity(tracker.getEntityId(), offset, yaw, pitch, tracker.getEntity().isOnGround()), players);
     }
 
 
@@ -209,36 +144,17 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
         // Transform the entity rotation to the origin of the portal
         Location entityPos = tracker.findRenderedLocation();
 
-        // Minecraft is dumb and uses bytes for this (why... just use a float jeb)
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_LOOK);
-        packet.getIntegers().write(0, tracker.getEntityId());
+        int yaw = RotationUtil.getPacketRotationInt(entityPos.getYaw());
+        int pitch = RotationUtil.getPacketRotationInt(entityPos.getPitch());
 
-        StructureModifier<Byte> bytes = packet.getBytes();
-        bytes.write(0, (byte) RotationUtil.getPacketRotationInt(entityPos.getYaw()));
-        bytes.write(1, (byte) RotationUtil.getPacketRotationInt(entityPos.getPitch()));
-        packet.getBooleans().write(0, tracker.getEntity().isOnGround());
-
-        sendPacket(packet, players);
+        sendNmsPacket(PacketFactory.lookEntity(tracker.getEntityId(), yaw, pitch, tracker.getEntity().isOnGround()), players);
     }
 
     @Override
     public void sendEntityTeleport(EntityInfo tracker, Collection<Player> players) {
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_TELEPORT);
-        packet.getIntegers().write(0, tracker.getEntityId());
-
         Location entityPos = tracker.findRenderedLocation();
 
-        StructureModifier<Double> doubles = packet.getDoubles();
-        doubles.write(0, entityPos.getX());
-        doubles.write(1, entityPos.getY());
-        doubles.write(2, entityPos.getZ());
-
-        // Why minecraft, why must you use a byte!
-        StructureModifier<Byte> bytes = packet.getBytes();
-        bytes.write(0, (byte) (int) (entityPos.getYaw() * 256.0f / 360.0f));
-        bytes.write(1, (byte) (int) (entityPos.getPitch() * 256.0f / 360.0f));
-
-        packet.getBooleans().write(0, tracker.getEntity().isOnGround());
+        sendNmsPacket(PacketFactory.teleportEntity(tracker.getEntityId(), entityPos, entityPos.getYaw(), entityPos.getPitch(), tracker.getEntity().isOnGround()), players);
     }
 
     @Override
@@ -300,19 +216,8 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
     public void sendEntityVelocity(EntityInfo tracker, Vector newVelocity, Collection<Player> players) {
         // Rotate the velocity back to the origin of the portal
         Vector entityVelocity = tracker.getRotation().transform(newVelocity);
-        // Avoid integer overflows by limiting these values to 3.9
-        entityVelocity = MathUtil.min(entityVelocity, new Vector(3.9, 3.9, 3.9));
-        entityVelocity = MathUtil.max(entityVelocity, new Vector(-3.9, -3.9, -3.9));
 
-        // Multiply by 8000 to convert the velocity into the integer representation. (jeb, just use a float)
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_VELOCITY);
-        StructureModifier<Integer> integers = packet.getIntegers();
-        integers.write(0, tracker.getEntityId());
-        integers.write(1, (int) (entityVelocity.getX() * 8000.0D));
-        integers.write(2, (int) (entityVelocity.getY() * 8000.0D));
-        integers.write(3, (int) (entityVelocity.getZ() * 8000.0D));
-
-        sendPacket(packet, players);
+        sendNmsPacket(PacketFactory.setEntityMotion(tracker.getEntityId(), entityVelocity), players);
     }
 
     @Override
@@ -360,8 +265,9 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
 
     @Override
     public void sendAddPlayerProfile(EntityInfo tracker, Collection<Player> players) {
+        // The player info packet is now split into update and remove packets, with an action set
         PacketContainer packet = new PacketContainer(PacketType.Play.Server.PLAYER_INFO);
-        packet.getPlayerInfoAction().write(0, EnumWrappers.PlayerInfoAction.ADD_PLAYER);
+        packet.getPlayerInfoActions().write(0, EnumSet.of(EnumWrappers.PlayerInfoAction.ADD_PLAYER));
 
         List<PlayerInfoData> playerInfoDataList = new ArrayList<>();
         playerInfoDataList.add(generatePlayerInfoData(tracker));
@@ -371,23 +277,19 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
 
     @Override
     public void sendRemovePlayerProfile(EntityInfo tracker, Collection<Player> players) {
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.PLAYER_INFO);
-        packet.getPlayerInfoAction().write(0, EnumWrappers.PlayerInfoAction.REMOVE_PLAYER);
-
-        List<PlayerInfoData> playerInfoDataList = new ArrayList<>();
-        playerInfoDataList.add(generatePlayerInfoData(tracker));
-        packet.getPlayerInfoDataLists().write(0, playerInfoDataList);
+        PacketContainer packet = new PacketContainer(PacketType.Play.Server.PLAYER_INFO_REMOVE);
+        packet.getUUIDLists().write(0, Collections.singletonList(tracker.getEntityUniqueId()));
         sendPacket(packet, players);
     }
 
     private void sendPacket(PacketContainer packet, Collection<Player> players) {
         ProtocolManager protocolManager = ProtocolLibrary.getProtocolManager();
-        try {
-            for (Player player : players) {
-                protocolManager.sendServerPacket(player, packet);
-            }
-        }   catch(InvocationTargetException ex) {
-            throw new RuntimeException("Failed to send packet", ex);
+        for (Player player : players) {
+            protocolManager.sendServerPacket(player, packet, false);
         }
+    }
+
+    private void sendNmsPacket(Object nmsPacket, Collection<Player> players) {
+        sendPacket(PacketContainer.fromPacket(nmsPacket), players);
     }
 }

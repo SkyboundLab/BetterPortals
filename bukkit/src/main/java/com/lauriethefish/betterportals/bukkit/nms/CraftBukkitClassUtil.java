@@ -4,20 +4,21 @@ import com.lauriethefish.betterportals.shared.util.ReflectionUtil;
 import org.bukkit.Bukkit;
 
 /**
- * Bukkit is strange and puts the version number in the NMS package names.
- * This means that we have to use reflection to access them if we want to work across versions.
+ * Bukkit (and nowadays Spigot as well) no longer always uses a versioned package for the craftbukkit classes.
+ * This means we can no longer rely on the version segment being present, so we just use whatever package the server implementation is in.
  */
 public class CraftBukkitClassUtil {
-    private static final String packageVersion; // Name of the NMS/craftbukkit packages, e.g. 1_12_R1
-    private static final String craftBukkitClassPrefix; // E.g. org.bukkit.craftbukkit.1_12_R1
+    private static final String craftBukkitClassPrefix; // E.g. org.bukkit.craftbukkit.
 
     static {
-        packageVersion = Bukkit.getServer().getClass().getPackage().getName().split("\\.")[3];
-        craftBukkitClassPrefix = String.format("org.bukkit.craftbukkit.%s.", packageVersion);
+        String packageName = Bukkit.getServer().getClass().getPackage().getName();
+
+        // org.bukkit.craftbukkit (26.1+) or org.bukkit.craftbukkit.v1_20_R3 (older versions) - append a dot either way
+        craftBukkitClassPrefix = packageName + ".";
     }
 
     /**
-     * Finds a class in the <code>org.bukkit.craftbukkit.version</code> package
+     * Finds a class in the <code>org.bukkit.craftbukkit</code> package
      * @param name Name of the class relative to this package, with no dot at the start.
      * @return The located class
      */

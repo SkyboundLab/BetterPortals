@@ -1,13 +1,6 @@
-repositories {
-    maven {
-        name 'velocity'
-        url 'https://repo.velocitypowered.com/snapshots/'
-    }
-}
-
 task setVersion(type: Copy) {
     from 'src/main/resources'
-    into 'build/resources/main'
+    into layout.buildDirectory.dir('resources/main')
     expand(version: project.version)
     filteringCharset = 'UTF-8'
 }
@@ -15,7 +8,7 @@ task setVersion(type: Copy) {
 tasks.jar.dependsOn setVersion
 
 dependencies {
-    compileOnly 'com.velocitypowered:velocity-api:3.1.0'
+    compileOnly 'com.velocitypowered:velocity-api:4.3.1'
 
     implementation project(':shared')
     implementation project(':proxy')

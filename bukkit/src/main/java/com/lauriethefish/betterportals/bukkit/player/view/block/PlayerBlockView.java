@@ -21,7 +21,6 @@ import org.bukkit.World;
 import org.bukkit.entity.Player;
 import org.bukkit.util.Vector;
 
-import java.lang.reflect.InvocationTargetException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.ReentrantLock;
@@ -165,12 +164,8 @@ public class PlayerBlockView implements IPlayerBlockView   {
 
             // Show the player the changed states
             multiBlockChangeManager.sendChanges();
-            try {
-                for (PacketContainer packet : queuedTileEntityUpdates) {
-                    ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet);
-                }
-            } catch (InvocationTargetException ex) {
-                throw new RuntimeException(ex);
+            for (PacketContainer packet : queuedTileEntityUpdates) {
+                ProtocolLibrary.getProtocolManager().sendServerPacket(player, packet, false);
             }
 
             // Removed due to being unreasonably frequent

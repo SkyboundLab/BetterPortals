@@ -4,7 +4,7 @@ import com.lauriethefish.betterportals.api.IntVector;
 import com.lauriethefish.betterportals.bukkit.config.RenderConfig;
 import com.lauriethefish.betterportals.bukkit.net.IPortalClient;
 import com.lauriethefish.betterportals.bukkit.net.requests.GetBlockDataChangesRequest;
-import com.lauriethefish.betterportals.bukkit.nms.BlockDataUtil;
+import org.bukkit.Bukkit;
 import com.lauriethefish.betterportals.bukkit.portal.IPortal;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import com.lauriethefish.betterportals.shared.net.RequestException;
@@ -56,13 +56,13 @@ public class ExternalBlockDataFetcher implements IBlockDataFetcher  {
             hasPreviousRequestFinished = true;
             try {
                 logger.finer("Received response to get block data request");
-                Map<IntVector, Integer> serializedChanges = (Map<IntVector, Integer>) response.getResult();
+                Map<IntVector, String> serializedChanges = (Map<IntVector, String>) response.getResult();
 
-                serializedChanges.forEach((position, newValue) -> currentStates.put(position, BlockDataUtil.getByCombinedId(newValue)));
+                serializedChanges.forEach((position, newValue) -> currentStates.put(position, Bukkit.createBlockData(newValue)));
 
                 hasFirstRequestFinished = true;
-            }   catch(RequestException ex) {
-                logger.warning("Failed to fetch block changes for external portal: ");
+            }   catch(RequestException | IllegalArgumentException | ClassCastException ex) {
+                logger.warning("Failed to fetch block changes for external portal: %s", ex);
                 ex.printStackTrace();
             }
         });

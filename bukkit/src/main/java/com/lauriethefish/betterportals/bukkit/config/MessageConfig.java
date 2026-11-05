@@ -3,7 +3,7 @@ package com.lauriethefish.betterportals.bukkit.config;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.lauriethefish.betterportals.bukkit.command.framework.CommandException;
-import com.lauriethefish.betterportals.bukkit.nms.NBTTagUtil;
+import com.lauriethefish.betterportals.bukkit.util.ItemMarkerUtil;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import lombok.Getter;
 import org.bukkit.ChatColor;
@@ -63,6 +63,30 @@ public class MessageConfig {
     }
 
     /**
+     * Converts a <code>#rrggbb</code> hex string into the legacy section-sign format that vanilla clients understand.
+     * @param hexString The hex colour to convert, e.g. <code>#ff0000</code>
+     * @return The legacy formatted colour, e.g. <code>§x§f§f§0§0§0§0</code>
+     * @throws IllegalArgumentException If the string is not a valid hex colour
+     */
+    private @NotNull String toLegacyHexColor(@NotNull String hexString) {
+        String digits = hexString.startsWith("#") ? hexString.substring(1) : hexString;
+        if (digits.length() != 6) {
+            throw new IllegalArgumentException("Hex colour must be 6 digits long: " + hexString);
+        }
+
+        StringBuilder result = new StringBuilder("§x");
+        for (char digit : digits.toCharArray()) {
+            if (Character.digit(digit, 16) == -1) {
+                throw new IllegalArgumentException("Invalid hex digit in colour: " + hexString);
+            }
+
+            result.append('§').append(Character.toLowerCase(digit));
+        }
+
+        return result.toString();
+    }
+
+    /**
      * Translates hex colour codes in <code>message</code>, e.g. <code>{(#000000)}</code> is black.
      * Invalid colour codes print a warning and are removed.
      * @param message The message to translate
@@ -94,7 +118,7 @@ public class MessageConfig {
                     String hexString = segment.substring(2, segment.length() - 2); // Get the #000000 part of the segment
 
                     try {
-                        result.append(net.md_5.bungee.api.ChatColor.of(hexString));
+                        result.append(toLegacyHexColor(hexString));
                         parsingFailed = false;
                     }   catch(IllegalArgumentException ex) {
                         logger.warning("Failed to parse hex colour: %s", hexString);
@@ -125,8 +149,8 @@ public class MessageConfig {
             meta.setDisplayName(portalWandName);
 
             portalWand.setItemMeta(meta);
-            // Portal wand checking is done with an NBT tag
-            portalWand = NBTTagUtil.addMarkerTag(portalWand, PORTAL_WAND_TAG);
+            // Portal wand checking is done with a persistent data marker
+            portalWand = ItemMarkerUtil.addMarkerTag(portalWand, PORTAL_WAND_TAG);
         }
 
         return portalWand;
@@ -138,7 +162,7 @@ public class MessageConfig {
      * @return true if it is a valid portal wand, false otherwise
      */
     public boolean isPortalWand(ItemStack item) {
-        return NBTTagUtil.hasMarkerTag(item, PORTAL_WAND_TAG);
+        return ItemMarkerUtil.hasMarkerTag(item, PORTAL_WAND_TAG);
     }
 
     /**

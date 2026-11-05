@@ -5,7 +5,7 @@ import com.google.inject.assistedinject.Assisted;
 import com.lauriethefish.betterportals.api.IntVector;
 import com.lauriethefish.betterportals.bukkit.math.Matrix;
 import com.lauriethefish.betterportals.bukkit.net.requests.GetBlockDataChangesRequest;
-import com.lauriethefish.betterportals.bukkit.nms.BlockDataUtil;
+import com.lauriethefish.betterportals.bukkit.net.requests.GetBlockDataChangesRequest;
 import org.bukkit.Bukkit;
 import org.bukkit.World;
 import org.bukkit.block.data.BlockData;
@@ -36,8 +36,8 @@ public class BlockChangeWatcher implements IBlockChangeWatcher  {
         }
     }
 
-    public @NotNull Map<IntVector, Integer> checkForChanges() {
-        Map<IntVector, Integer> result = new HashMap<>();
+    public @NotNull Map<IntVector, String> checkForChanges() {
+        Map<IntVector, String> result = new HashMap<>();
 
         for(int x = -xAndZRadius; x <= xAndZRadius ; x++) {
             for(int z = -xAndZRadius; z <= xAndZRadius; z++) {
@@ -48,7 +48,7 @@ public class BlockChangeWatcher implements IBlockChangeWatcher  {
                     BlockData oldData = previousData.get(blockPos);
 
                     if(!data.equals(oldData)) {
-                        result.put(blockPos, BlockDataUtil.getCombinedId(data));
+                        result.put(blockPos, data.getAsString());
                         previousData.put(blockPos, data);
                     }
                 }
