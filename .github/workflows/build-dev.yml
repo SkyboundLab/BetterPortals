@@ -2,7 +2,7 @@ name: Build Development
 
 on:
   push:
-    branches: [master]
+    branches: [next]
 
 permissions:
   contents: write
@@ -32,8 +32,8 @@ jobs:
       - name: Upload Build
         uses: marvinpinto/action-automatic-releases@master
         with:
-          title: "${{ env.NAME }}"
-          automatic_release_tag: "latest"
+          title: "${{ env.NAME }} (next)"
+          automatic_release_tag: "next"
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           files: "final/build/libs/*.jar"
-          prerelease: false
+          prerelease: true
