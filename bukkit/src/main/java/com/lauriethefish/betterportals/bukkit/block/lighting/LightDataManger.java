@@ -31,10 +31,11 @@ public class LightDataManger implements ILightDataManager   {
             return -1;
         }
 
-        World.Environment destEnv = destWorld.getEnvironment();
-        if(destEnv == World.Environment.NETHER) {
+        // Dimension-keyed (see DimensionUtil): datapack dimensions fall
+        // through to the overworld-like branch.
+        if(com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isNether(destWorld)) {
             return 8; // Set a dim light by default in the nether (avoids nether in caves showing as too dark)
-        }   else if(destEnv == World.Environment.NORMAL) {
+        }   else if(com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isOverworld(destWorld)) {
             // If close-ish to the surface
             if(portal.getDestPos().getVector().getY() > 64.0) {
                 long time = destWorld.getTime();

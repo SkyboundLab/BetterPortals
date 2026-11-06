@@ -104,12 +104,12 @@ public class PortalSpawnConfig {
             return;
         }
 
-        if(mainWorld.getEnvironment() != World.Environment.NORMAL) {
+        if(!com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isOverworld(mainWorld)) {
             logger.warning("Cannot add default world links - first world is not overworld");
             return;
         }
 
-        if(netherWorld.getEnvironment() != World.Environment.NETHER) {
+        if(!com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isNether(netherWorld)) {
             logger.warning("Cannot add default world links - _nether world is not actually nether");
         }
 

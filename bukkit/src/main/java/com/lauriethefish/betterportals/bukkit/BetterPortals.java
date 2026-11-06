@@ -155,6 +155,7 @@ public class BetterPortals extends JavaPlugin {
         }
 
         blockUpdateFinisher.stop();
+        mainUpdate.stop();
 
         try {
             portalStorage.savePortals();

@@ -39,12 +39,16 @@ public class DimensionBlendManager implements IDimensionBlendManager    {
     }
 
     private @NotNull Material findFillInBlock(@NotNull Location destination) {
-        return switch (Objects.requireNonNull(destination.getWorld(), "World of destination location cannot be null").getEnvironment()) {
-            case NETHER -> Material.NETHERRACK;
-            case NORMAL -> Material.STONE;
-            case THE_END -> Material.END_STONE;
-            default -> Material.AIR;
-        };
+        // Dimension-keyed (see DimensionUtil): datapack dimensions have no
+        // Environment of their own and get the overworld-like fill.
+        org.bukkit.World world = Objects.requireNonNull(destination.getWorld(), "World of destination location cannot be null");
+        if (com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isNether(world)) {
+            return Material.NETHERRACK;
+        }   else if (com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isEnd(world)) {
+            return Material.END_STONE;
+        }   else {
+            return Material.STONE;
+        }
     }
 
     @Override

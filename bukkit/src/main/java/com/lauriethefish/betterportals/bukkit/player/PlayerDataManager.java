@@ -3,6 +3,7 @@ package com.lauriethefish.betterportals.bukkit.player;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.lauriethefish.betterportals.bukkit.config.ProxyConfig;
+import com.lauriethefish.betterportals.bukkit.entity.PortalMomentum;
 import com.lauriethefish.betterportals.bukkit.events.IEventRegistrar;
 import com.lauriethefish.betterportals.bukkit.net.requests.GetSelectionRequest;
 import com.lauriethefish.betterportals.bukkit.portal.selection.ISelectionManager;
@@ -29,6 +30,7 @@ public class PlayerDataManager implements IPlayerDataManager, Listener   {
     private final IPlayerData.Factory playerDataFactory;
     private final Map<Player, IPlayerData> players = new HashMap<>();
     private final ProxyConfig proxyConfig;
+    private final PortalMomentum portalMomentum;
 
     private final Map<UUID, TeleportRequest> pendingTeleportOnJoin = new HashMap<>();
     private final Map<UUID, GetSelectionRequest.ExternalSelectionInfo> pendingSelectionOnJoin = new HashMap<>();
@@ -38,10 +40,11 @@ public class PlayerDataManager implements IPlayerDataManager, Listener   {
     private final Map<UUID, ISelectionManager> loggedOutPlayerSelections = new HashMap<>();
 
     @Inject
-    public PlayerDataManager(IEventRegistrar eventRegistrar, Logger logger, IPlayerData.Factory playerDataFactory, ProxyConfig proxyConfig) {
+    public PlayerDataManager(IEventRegistrar eventRegistrar, Logger logger, IPlayerData.Factory playerDataFactory, ProxyConfig proxyConfig, PortalMomentum portalMomentum) {
         this.logger = logger;
         this.playerDataFactory = playerDataFactory;
         this.proxyConfig = proxyConfig;
+        this.portalMomentum = portalMomentum;
 
         addExistingPlayers();
         eventRegistrar.register(this);
@@ -145,8 +148,9 @@ public class PlayerDataManager implements IPlayerDataManager, Listener   {
                 request.getDestVelZ()
         );
 
-        player.teleport(destinationPosition);
-        player.setVelocity(destinationVelocity);
+        // The velocity was already rotated/scaled by the sending server;
+        // re-apply it with the 26.2 momentum window so it survives landing.
+        portalMomentum.teleportWithMomentum(player, destinationPosition, destinationVelocity, 1.0);
 
         player.setFlying(request.isFlying());
         player.setGliding(request.isGliding());

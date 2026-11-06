@@ -4,6 +4,8 @@ import com.google.inject.assistedinject.Assisted;
 import com.lauriethefish.betterportals.api.PortalPosition;
 import com.lauriethefish.betterportals.bukkit.config.MiscConfig;
 import com.lauriethefish.betterportals.bukkit.config.RenderConfig;
+import com.lauriethefish.betterportals.bukkit.entity.faking.MannequinFakePlayerManager;
+import com.lauriethefish.betterportals.bukkit.entity.PortalMomentum;
 import com.lauriethefish.betterportals.bukkit.math.MathUtil;
 import com.lauriethefish.betterportals.bukkit.math.PortalTransformations;
 import com.lauriethefish.betterportals.bukkit.net.IPortalClient;
@@ -40,6 +42,8 @@ public class PortalEntityManager implements IPortalEntityManager {
     private final JavaPlugin pl;
     private final IEntityFinder entityFinder;
     private final IPlayerDataManager playerDataManager;
+    private final PortalMomentum portalMomentum;
+    private final MannequinFakePlayerManager mannequinManager;
 
     private final boolean requireDestination;
 
@@ -48,7 +52,7 @@ public class PortalEntityManager implements IPortalEntityManager {
 
     @Inject
     public PortalEntityManager(@Assisted IPortal portal, @Assisted boolean requireDestination, MiscConfig miscConfig, RenderConfig renderConfig, IPortalPredicateManager predicateManager, Logger logger, IPortalClient
-            portalClient, JavaPlugin pl, IEntityFinder entityFinder, IPlayerDataManager playerDataManager) {
+            portalClient, JavaPlugin pl, IEntityFinder entityFinder, IPlayerDataManager playerDataManager, PortalMomentum portalMomentum, MannequinFakePlayerManager mannequinManager) {
         this.portal = portal;
         this.requireDestination = requireDestination;
         this.miscConfig = miscConfig;
@@ -59,6 +63,8 @@ public class PortalEntityManager implements IPortalEntityManager {
         this.pl = pl;
         this.entityFinder = entityFinder;
         this.playerDataManager = playerDataManager;
+        this.portalMomentum = portalMomentum;
+        this.mannequinManager = mannequinManager;
     }
 
     @Override
@@ -81,6 +87,12 @@ public class PortalEntityManager implements IPortalEntityManager {
         originEntities = new HashMap<>();
 
         getNearbyEntities(portal.getOriginPos(), entity -> {
+            // A Mannequin fake is a real entity standing just behind the
+            // portal in this world: it must never enter the origin list,
+            // or the hide-behind-portal check would destroy it for the
+            // viewer and the teleport check could teleport it (2026-11-06
+            // live test: the fake appeared for a second, then vanished).
+            if (mannequinManager.isFakePlayer(entity)) { return; }
             Location oldLocation = oldOriginEntities == null ? null : oldOriginEntities.get(entity);
             originEntities.put(entity, oldLocation != null ? oldLocation : entity.getLocation());
         });
@@ -189,10 +201,13 @@ public class PortalEntityManager implements IPortalEntityManager {
      */
     private void teleportLocal(Entity entity) {
         PortalTransformations transformations = portal.getTransformations();
+        double scale = transformations.getScale();
 
         Location destPos;
         destPos = entity.getLocation().subtract(portal.getOriginPos().getVector());
-        destPos = transformations.rotateToDestination(destPos.toVector()).toLocation(Objects.requireNonNull(portal.getDestPos().getWorld()));
+        // Offsets (like velocities) are rotated *and scaled*; the look
+        // direction below is rotated only, so it stays a unit vector.
+        destPos = transformations.rotateAndScaleToDestination(destPos.toVector()).toLocation(Objects.requireNonNull(portal.getDestPos().getWorld()));
         destPos.add(portal.getDestPos().getVector());
         destPos.setDirection(transformations.rotateToDestination(entity.getLocation().getDirection()));
 
@@ -202,9 +217,10 @@ public class PortalEntityManager implements IPortalEntityManager {
             destPos.add(0.0, 0.2, 0.0);
         }
 
-        // Teleporting an entity removes the velocity, so we have to re-add it
-        Vector velocity = entity.getVelocity();
-        velocity = transformations.rotateToDestination(velocity);
+        // Teleporting an entity removes the velocity, so we have to re-add
+        // it — rotated and scaled by the portal transform, then protected
+        // from the landing tick by the 26.2 attribute window (PortalMomentum).
+        Vector velocity = PortalMomentum.transformVelocity(entity.getVelocity(), transformations.getRotateToDestination(), scale);
 
         logger.fine("Teleporting entity with ID %d and of type %s to position %s", entity.getEntityId(), entity.getType(), destPos.toVector());
 
@@ -218,8 +234,7 @@ public class PortalEntityManager implements IPortalEntityManager {
         }
 
 
-        entity.teleport(destPos);
-        entity.setVelocity(velocity);
+        portalMomentum.teleportWithMomentum(entity, destPos, velocity, scale);
 
         if(handlePassengers) {
             passengers.forEach(entity::addPassenger);
@@ -242,7 +257,10 @@ public class PortalEntityManager implements IPortalEntityManager {
 
         Location destPosition = portal.getTransformations().moveToDestination(player.getLocation());
         destPosition.setDirection(portal.getTransformations().rotateToDestination(player.getLocation().getDirection()));
-        Vector destVelocity = portal.getTransformations().rotateToDestination(player.getVelocity());
+        // Cross-server velocity is also rotated and scaled; the receiving
+        // server re-applies it with the momentum window (PlayerDataManager).
+        Vector destVelocity = PortalMomentum.transformVelocity(player.getVelocity(),
+                portal.getTransformations().getRotateToDestination(), portal.getTransformations().getScale());
 
 
         TeleportRequest request = new TeleportRequest();

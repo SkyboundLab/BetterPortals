@@ -5,6 +5,7 @@ import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.lauriethefish.betterportals.api.IntVector;
 import com.lauriethefish.betterportals.api.PortalPosition;
+import com.lauriethefish.betterportals.bukkit.util.DimensionUtil;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import lombok.Getter;
 import org.bukkit.Material;
@@ -47,6 +48,13 @@ public class RenderConfig {
     private int worldSwitchWaitTime;
 
     @Getter private boolean portalBlocksHidden;
+
+    /** Global portal scale factor for IP-style scaled portals (1.0 = unscaled). */
+    private double portalScale;
+    /** Per-portal scale overrides, keyed by portal name. */
+    private final Map<String, Double> portalScales = new HashMap<>();
+    /** Extra roll about the portal normal, in degrees (0 = none). */
+    private double portalRollDegrees;
 
     private int blockStateRefreshInterval;
 
@@ -107,6 +115,28 @@ public class RenderConfig {
         portalBlocksHidden = file.getBoolean("hidePortalBlocks");
         blockStateRefreshInterval = file.getInt("blockStateRefreshInterval");
 
+        // Scale/rotation transforms (IP-style scaled portals). A missing or
+        // non-positive scale in an old config must not collapse portals to
+        // zero size, so default to 1.0 and clamp.
+        portalScale = file.getDouble("portalScale", 1.0);
+        if (portalScale <= 0.0 || !Double.isFinite(portalScale)) {
+            logger.warning("Invalid portalScale %s, defaulting to 1.0", portalScale);
+            portalScale = 1.0;
+        }
+        portalRollDegrees = file.getDouble("portalRollDegrees", 0.0);
+        portalScales.clear();
+        ConfigurationSection scalesSection = file.getConfigurationSection("portalScales");
+        if (scalesSection != null) {
+            for (String portalName : scalesSection.getKeys(false)) {
+                double scale = scalesSection.getDouble(portalName, 1.0);
+                if (scale > 0.0 && Double.isFinite(scale)) {
+                    portalScales.put(portalName, scale);
+                }   else {
+                    logger.warning("Invalid portal scale for portal %s, ignoring it", portalName);
+                }
+            }
+        }
+
         String bgBlockString = file.getString("backgroundBlock", "");
 
         if(bgBlockString.isEmpty()) {
@@ -141,6 +171,26 @@ public class RenderConfig {
         };
     }
 
+    /**
+     * The scale factor for a portal: a per-portal override by name, else the global {@code portalScale}.
+     * @param portalName The portal's name, or {@code null} for unnamed (nether) portals
+     * @return The scale factor, always positive and finite
+     */
+    public double getPortalScale(@Nullable String portalName) {
+        if (portalName != null) {
+            Double override = portalScales.get(portalName);
+            if (override != null) {
+                return override;
+            }
+        }
+        return portalScale;
+    }
+
+    /** @return The extra roll about the portal normal, in degrees (0 = none). */
+    public double getPortalRollDegrees() {
+        return portalRollDegrees;
+    }
+
     public boolean isOutsideBounds(int x, int y, int z) {
         return x <= minXZ || x >= maxXZ || y <= minY || y >= maxY || z <= minXZ || z >= maxXZ;
     }
@@ -165,18 +215,21 @@ public class RenderConfig {
         World world = destPosition.getWorld();
         assert world != null;
 
+        // Dimension-keyed, not Environment-keyed: datapack dimensions have
+        // no Environment of their own and fall through to the overworld-like
+        // branch (see DimensionUtil).
         Material material;
-        if(world.getEnvironment() == World.Environment.NORMAL)    {
+        if(DimensionUtil.isNether(world)) {
+            material = Material.RED_CONCRETE;
+        }   else if(DimensionUtil.isEnd(world)) {
+            material = Material.BLACK_CONCRETE;
+        }   else {
             long time = world.getTime();
             if(time > 0 && time < 12300) {
                 material = Material.WHITE_CONCRETE;
             }   else {
                 material = Material.BLACK_CONCRETE;
             }
-        }   else if(world.getEnvironment() == World.Environment.NETHER) {
-            material = Material.RED_CONCRETE;
-        }   else    {
-            material = Material.BLACK_CONCRETE;
         }
 
         return WrappedBlockData.createData(material);

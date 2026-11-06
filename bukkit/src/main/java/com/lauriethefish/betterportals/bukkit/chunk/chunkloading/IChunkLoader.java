@@ -17,8 +17,13 @@ public interface IChunkLoader {
     }
 
     default void forceLoadAllPos(@NotNull Iterator<? extends ChunkPosition> iterator) {
+        // Delegates to setForceLoaded(ChunkPosition) — implementations
+        // must force-load by coordinates WITHOUT fetching the Chunk first:
+        // ChunkPosition.getChunk() loads the chunk synchronously on the
+        // calling thread, which stalled the server for 10s+ when a portal
+        // was activated into unloaded terrain (2026-11-06 live test).
         while(iterator.hasNext()) {
-            setForceLoaded(iterator.next().getChunk());
+            setForceLoaded(iterator.next());
         }
     }
 

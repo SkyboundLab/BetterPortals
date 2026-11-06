@@ -2,8 +2,8 @@ package com.lauriethefish.betterportals.bukkit.tasks;
 
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
+import com.lauriethefish.betterportals.bukkit.util.FoliaScheduler;
 import com.lauriethefish.betterportals.shared.logging.Logger;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -22,9 +22,19 @@ public class AsyncBlockUpdateFinisher extends BlockUpdateFinisher implements Run
         this.pl = pl;
     }
 
+    private FoliaScheduler.TaskHandle repeatingTask;
+
     @Override
     public void start() {
-        Bukkit.getScheduler().runTaskTimerAsynchronously(pl, this, 0, 1);
+        // Async scheduler on Folia/Paper, async Bukkit task on Spigot.
+        repeatingTask = FoliaScheduler.runAsyncAtFixedRate(pl, this, 0, 1);
+    }
+
+    @Override
+    public void stop() {
+        FoliaScheduler.cancel(repeatingTask);
+        repeatingTask = null;
+        super.stop();
     }
 
     @Override

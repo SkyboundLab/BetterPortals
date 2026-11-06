@@ -108,6 +108,31 @@ public class Matrix implements Serializable {
     }
 
     /**
+     * Creates a uniform scale matrix: every vector's length is multiplied by <code>scale</code>.
+     * Used for IP-style scaled portals — the scale is applied around the portal centre,
+     * between the origin translation and the rotation (see {@link com.lauriethefish.betterportals.bukkit.math.PortalTransformations}).
+     * @param scale The scale factor (1.0 = unscaled)
+     * @return The scale matrix
+     */
+    public static Matrix makeScale(double scale) {
+        return makeScale(new Vector(scale, scale, scale));
+    }
+
+    /**
+     * Creates a non-uniform scale matrix.
+     * @param scale Per-axis scale factors
+     * @return The scale matrix
+     */
+    public static Matrix makeScale(Vector scale) {
+        return new Matrix(new double[][]{
+                {scale.getX(), 0, 0, 0},
+                {0, scale.getY(), 0, 0},
+                {0, 0, scale.getZ(), 0},
+                {0, 0, 0, 1}
+        });
+    }
+
+    /**
      * Creates a rotation matrix around axis with the specified angle.
      * This matrix will never change the magnitude of a vector
      * @param axis The axis to rotate around. This can be used to specify yaw, pitch or roll.

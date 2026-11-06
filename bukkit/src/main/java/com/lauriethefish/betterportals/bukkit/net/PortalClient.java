@@ -3,6 +3,7 @@ package com.lauriethefish.betterportals.bukkit.net;
 import com.google.inject.Inject;
 import com.google.inject.Singleton;
 import com.lauriethefish.betterportals.bukkit.config.ProxyConfig;
+import com.lauriethefish.betterportals.bukkit.util.FoliaScheduler;
 import com.lauriethefish.betterportals.bukkit.util.VersionUtil;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import com.lauriethefish.betterportals.shared.net.*;
@@ -136,7 +137,7 @@ public class PortalClient implements IPortalClient {
      */
     private void processRequest(Request request) {
         // We don't just send the response directly, since it may take some time to process the request, and we need to be ready for more requests.
-        requestHandler.handleRequest(request, (response) -> Bukkit.getScheduler().runTaskAsynchronously(pl, () -> {
+        requestHandler.handleRequest(request, (response) -> FoliaScheduler.runAsync(pl, () -> {
             response.setId((request).getId()); // Assign the correct request ID so that the proxy knows which request this response is for
             try {
                 send(response);
@@ -158,8 +159,8 @@ public class PortalClient implements IPortalClient {
             throw new IllegalStateException("Received response for request that didn't exist");
         }
 
-        // Call it on the main server thread
-        Bukkit.getScheduler().runTask(pl, () -> waiter.accept(response));
+        // Call it on the main/global thread (GlobalRegionScheduler on Folia/Paper)
+        FoliaScheduler.runGlobalDelayed(pl, () -> waiter.accept(response), 0);
     }
 
     /**
@@ -278,7 +279,7 @@ public class PortalClient implements IPortalClient {
         }
 
         // Avoid blocking the main thread
-        Bukkit.getScheduler().runTaskAsynchronously(pl, () -> {
+        FoliaScheduler.runAsync(pl, () -> {
             try {
                 send(request);
             } catch (IOException | GeneralSecurityException ex) {

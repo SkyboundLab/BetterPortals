@@ -202,14 +202,16 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
 
     @Override
     public void sendMetadata(EntityInfo tracker, Collection<Player> players) {
-        PacketContainer packet = new PacketContainer(PacketType.Play.Server.ENTITY_METADATA);
+        // Built with NMS directly (see PacketFactory.setEntityData):
+        // ProtocolLib 5.5.0-SNAPSHOT's watchable conversion emits DataItems,
+        // which the 26.3 packet rejects and the encoder then disconnects
+        // the receiving client. A null packet means the values could not be
+        // read on this build — skipping the send is safe (metadata is
+        // appearance data), sending a malformed packet is not.
+        Object packet = PacketFactory.setEntityData(tracker.getEntityId(), tracker.getEntity());
+        if (packet == null) { return; }
 
-        packet.getIntegers().write(0, tracker.getEntityId());
-
-        WrappedDataWatcher dataWatcher = EntityUtil.getActualDataWatcher(tracker.getEntity()); // Use the Entity's actual data watcher, not ProtocolLib's method which gives us a dummy
-        packet.getWatchableCollectionModifier().write(0, dataWatcher.getWatchableObjects());
-
-        sendPacket(packet, players);
+        sendNmsPacket(packet, players);
     }
 
     @Override

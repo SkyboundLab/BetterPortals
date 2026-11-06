@@ -138,7 +138,14 @@ public interface IEntityPacketManipulator {
      * Will use the skin, name and latency of the player that the tracker is replicating, but will change the UUID to match that of the tracker
      * @param tracker The player being shown
      * @param players Players to send the packet to
+     * @deprecated Legacy fallback only. Players are now rendered through
+     * portals as real Mannequin entities (see
+     * {@link MannequinFakePlayerManager}) and never need a
+     * {@code PLAYER_INFO} entry. These methods remain for the fallback path
+     * when a Mannequin cannot be spawned, and for non-player entities that
+     * still need the packet path.
      */
+    @Deprecated
     void sendAddPlayerProfile(EntityInfo tracker, Collection<Player> players);
 
 
@@ -146,6 +153,8 @@ public interface IEntityPacketManipulator {
      * Sends a remove player profile packet to remove the tracker's player from the client's view
      * @param tracker The player being removed
      * @param players Players to send the packet to
+     * @deprecated See {@link #sendAddPlayerProfile(EntityInfo, Collection)}.
      */
+    @Deprecated
     void sendRemovePlayerProfile(EntityInfo tracker, Collection<Player> players);
 }

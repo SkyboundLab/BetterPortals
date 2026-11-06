@@ -40,7 +40,7 @@ public class ExternalBlockDataFetcher implements IBlockDataFetcher  {
         request.setWorldName(portal.getDestPos().getWorldName());
         request.setWorldId(portal.getDestPos().getWorldId());
         request.setPosition(new IntVector(portal.getDestPos().getVector()));
-        request.setRotateOriginToDest(portal.getTransformations().getRotateToDestination());
+        request.setRotateOriginToDest(portal.getTransformations().getRotateAndScaleToDestination());
     }
 
     @Override

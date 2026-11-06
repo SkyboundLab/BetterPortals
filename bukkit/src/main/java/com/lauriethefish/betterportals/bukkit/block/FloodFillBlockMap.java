@@ -48,7 +48,9 @@ public abstract class FloodFillBlockMap implements IBlockMap {
         this.logger = logger;
         this.renderConfig = renderConfig;
         this.centerPos = new IntVector(portal.getOriginPos().getVector());
-        this.rotateOriginToDest = portal.getTransformations().getRotateToDestination();
+        // Rotation *and* scale: scaled portals project their fake blocks
+        // along the transformed (scaled) plane, rounded to whole blocks.
+        this.rotateOriginToDest = portal.getTransformations().getRotateAndScaleToDestination();
         this.destDirection = portal.getDestPos().getDirection();
         this.portalOriginPos = new IntVector(portal.getOriginPos().getVector());
         this.portalDestPos = roundBasedOnDirection(portal);

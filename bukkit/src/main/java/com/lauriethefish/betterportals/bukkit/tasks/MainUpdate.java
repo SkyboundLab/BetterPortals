@@ -8,6 +8,7 @@ import com.lauriethefish.betterportals.bukkit.net.ClientRequestHandler;
 import com.lauriethefish.betterportals.bukkit.player.IPlayerData;
 import com.lauriethefish.betterportals.bukkit.player.PlayerDataManager;
 import com.lauriethefish.betterportals.bukkit.portal.IPortalActivityManager;
+import com.lauriethefish.betterportals.bukkit.util.FoliaScheduler;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -43,8 +44,18 @@ public class MainUpdate implements Runnable {
         this.logger = logger;
     }
 
+    private FoliaScheduler.TaskHandle tickTask;
+
     public void start() {
-        pl.getServer().getScheduler().runTaskTimer(pl, this, 0L, 1L);
+        // Global region scheduler on Folia/Paper (the global region thread
+        // is the closest equivalent to Paper's single main thread), plain
+        // Bukkit scheduler on Spigot — see FoliaScheduler.
+        tickTask = FoliaScheduler.runGlobalAtFixedRate(pl, this, 0L, 1L);
+    }
+
+    public void stop() {
+        FoliaScheduler.cancel(tickTask);
+        tickTask = null;
     }
 
     @Override

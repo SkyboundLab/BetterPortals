@@ -1,7 +1,6 @@
 package com.lauriethefish.betterportals.bukkit.nms;
 
 import com.comphenix.protocol.events.PacketContainer;
-import com.comphenix.protocol.wrappers.WrappedDataWatcher;
 import com.lauriethefish.betterportals.shared.util.ReflectionUtil;
 import com.lauriethefish.betterportals.shared.util.ReflectionException;
 import org.bukkit.World;
@@ -15,6 +14,9 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 public class EntityUtil {
     private static final Method GET_HANDLE;
@@ -22,7 +24,21 @@ public class EntityUtil {
     private static final Method GET_ADD_ENTITY_PACKET;
     private static final Field DATA_WATCHER;
     private static final Field UPDATE_INTERVAL_NEVER;
+    /**
+     * {@code SynchedEntityData.getNonDefaultValues()}, soft-resolved: null
+     * when this server build lacks it (see {@link #getNonDefaultDataValues}).
+     * Resolved softly on purpose — a hard lookup here would kill this whole
+     * class (and therefore all packet-based entity faking) on any build
+     * without the method, the same failure mode the Paper 6-arg
+     * ServerEntity constructor used to have.
+     */
+    private static final Method GET_NON_DEFAULT_VALUES;
     private static final Constructor<?> SERVER_ENTITY_CTOR;
+    /**
+     * True when {@link #SERVER_ENTITY_CTOR} is Paper's 6-argument form,
+     * false for the 5-argument vanilla/older-Paper form.
+     */
+    private static final boolean SERVER_ENTITY_CTOR_TAKES_TRACKED_PLAYERS;
     private static final Class<?> NMS_SYNCHRONIZER;
 
     static {
@@ -39,21 +55,64 @@ public class EntityUtil {
         DATA_WATCHER = ReflectionUtil.findFieldByType(NMS_ENTITY, NMS_SYNCHED_DATA);
         UPDATE_INTERVAL_NEVER = ReflectionUtil.findField(NMS_UPDATE_INTERVAL, "NEVER");
         GET_ADD_ENTITY_PACKET = ReflectionUtil.findMethod(NMS_ENTITY, "getAddEntityPacket", NMS_SERVER_ENTITY);
-        SERVER_ENTITY_CTOR = ReflectionUtil.findConstructor(NMS_SERVER_ENTITY, NMS_SERVER_LEVEL, NMS_ENTITY, NMS_UPDATE_INTERVAL, boolean.class, NMS_SYNCHRONIZER);
+        Method nonDefaultValues;
+        try {
+            nonDefaultValues = ReflectionUtil.findMethod(NMS_SYNCHED_DATA, "getNonDefaultValues");
+        }   catch(ReflectionException ex) {
+            nonDefaultValues = null;
+        }
+        GET_NON_DEFAULT_VALUES = nonDefaultValues;
+        // Paper 26.3 (verified against build 244) added a sixth constructor
+        // argument — the Set<ServerPlayerConnection> of already-tracking
+        // players, stored in the `trackedPlayers` field. Vanilla 26.3 and
+        // older Paper builds still have the 5-argument form, so try the
+        // Paper form first and fall back. Looking up only one shape is what
+        // used to kill this whole class with an ExceptionInInitializerError
+        // (and therefore all packet-based entity faking, every tick) on
+        // Paper 26.3-244.
+        Constructor<?> ctor;
+        boolean takesTrackedPlayers;
+        try {
+            ctor = ReflectionUtil.findConstructor(NMS_SERVER_ENTITY, NMS_SERVER_LEVEL, NMS_ENTITY,
+                    NMS_UPDATE_INTERVAL, boolean.class, NMS_SYNCHRONIZER, Set.class);
+            takesTrackedPlayers = true;
+        }   catch(ReflectionException ex) {
+            ctor = ReflectionUtil.findConstructor(NMS_SERVER_ENTITY, NMS_SERVER_LEVEL, NMS_ENTITY,
+                    NMS_UPDATE_INTERVAL, boolean.class, NMS_SYNCHRONIZER);
+            takesTrackedPlayers = false;
+        }
+        SERVER_ENTITY_CTOR = ctor;
+        SERVER_ENTITY_CTOR_TAKES_TRACKED_PLAYERS = takesTrackedPlayers;
     }
 
     /**
-     * ProtocolLib unfortunately doesn't provide any methods for getting the <i>actual</i> {@link WrappedDataWatcher} of an entity.
-     * {@link WrappedDataWatcher#WrappedDataWatcher(Entity)} doesn't do this - it returns a new empty {@link WrappedDataWatcher} for this entity.
-     * This function wraps the entities actual watcher in the ProtocolLib wrapper.
-     * @param entity The entity to wrap the data watcher of
-     * @return The wrapped data watcher
+     * Returns the entity's non-default data values — the
+     * {@code SynchedEntityData.DataValue} list a 26.3
+     * {@code ClientboundSetEntityDataPacket} carries — or {@code null} if
+     * they cannot be read on this server build.
+     *
+     * <p>This is exactly the set the vanilla server sends when an entity
+     * starts being tracked. It is read from the entity's real
+     * {@code SynchedEntityData} rather than built through ProtocolLib:
+     * ProtocolLib 5.5.0-SNAPSHOT's watchable conversion still produces the
+     * old {@code DataItem} objects, and the 26.3 packet's encoder rejects
+     * them with {@code ClassCastException: DataItem cannot be cast to
+     * DataValue} — which disconnects the receiving client. See
+     * {@link PacketFactory#setEntityData}.
+     * @param entity The entity to read the data values of
+     * @return The non-default data values, or {@code null} if unavailable
      */
-    @NotNull
-    public static WrappedDataWatcher getActualDataWatcher(@NotNull Entity entity) {
-        Object nmsEntity = ReflectionUtil.invokeMethod(entity, GET_HANDLE);
-        Object nmsDataWatcher = ReflectionUtil.getField(nmsEntity, DATA_WATCHER);
-        return new WrappedDataWatcher(nmsDataWatcher);
+    public static @Nullable List<Object> getNonDefaultDataValues(@NotNull Entity entity) {
+        if (GET_NON_DEFAULT_VALUES == null) { return null; }
+        try {
+            Object nmsEntity = ReflectionUtil.invokeMethod(entity, GET_HANDLE);
+            Object nmsDataWatcher = ReflectionUtil.getField(nmsEntity, DATA_WATCHER);
+            @SuppressWarnings("unchecked")
+            List<Object> values = (List<Object>) ReflectionUtil.invokeMethod(nmsDataWatcher, GET_NON_DEFAULT_VALUES);
+            return values;
+        }   catch(ReflectionException ex) {
+            return null;
+        }
     }
 
     /**
@@ -92,6 +151,14 @@ public class EntityUtil {
         Object updateInterval = ReflectionUtil.getField(null, UPDATE_INTERVAL_NEVER);
         Object synchronizer = createNoOpSynchronizer();
 
+        if (SERVER_ENTITY_CTOR_TAKES_TRACKED_PLAYERS) {
+            // Paper stores this set as the entity's `trackedPlayers`. This
+            // ServerEntity is a throwaway used only to build a spawn packet,
+            // so no players track it yet — an empty (mutable, in case the
+            // server adds pairings later) set is the correct value.
+            return ReflectionUtil.invokeConstructor(SERVER_ENTITY_CTOR, serverLevel, nmsEntity,
+                    updateInterval, false, synchronizer, new HashSet<>());
+        }
         return ReflectionUtil.invokeConstructor(SERVER_ENTITY_CTOR, serverLevel, nmsEntity, updateInterval, false, synchronizer);
     }
 

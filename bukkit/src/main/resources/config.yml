@@ -84,6 +84,31 @@ backgroundBlock: ''
 
 teleportCooldown: 2 # How long to wait before a player can go back after going through a portal (0 to disable)
 
+# Render players seen through portals as real Mannequin entities (1.21.9+)
+# instead of PLAYER_INFO + spawn packets. More robust across versions; falls
+# back to the packet path automatically if Mannequins cannot be spawned.
+mannequinFakePlayers: true
+
+# Preserve momentum through portals using the 26.2 physics attributes
+# (air_drag_modifier / bounciness). The velocity itself is still carried
+# explicitly; the attributes only stop it being eaten on the landing tick.
+preserveMomentum: true
+momentumDragFreeTicks: 10 # How long the drag-free window lasts after a teleport
+
+# IP-style scaled portals: uniform scale applied around the portal centre
+# (1.0 = unscaled). Fake blocks are projected along the scaled plane and
+# rounded to whole blocks, so scaling is approximate there; teleported
+# velocities scale exactly.
+portalScale: 1.0
+# Per-portal scale overrides, keyed by portal name, e.g.:
+# portalScales:
+#   'tiny-door': 0.5
+#   'giant-gate': 2.0
+portalScales: {}
+
+# Extra roll about the portal normal, in degrees (0 = none)
+portalRollDegrees: 0.0
+
 # Enables or disables the default world connections between the default overworld and nether worlds if they exist
 enableDefaultWorldConnections: true
 

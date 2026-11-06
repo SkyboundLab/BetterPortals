@@ -3,17 +3,35 @@ package com.lauriethefish.betterportals.bukkit.nms;
 import com.lauriethefish.betterportals.shared.util.ReflectionException;
 import com.lauriethefish.betterportals.shared.util.ReflectionUtil;
 import org.bukkit.Location;
+import org.bukkit.entity.Entity;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.lang.reflect.Constructor;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * Version specific NMS packet construction.
  * This class only exists because the packet format for some packets (e.g. entity teleports) changed significantly in 26.x,
  * so building them with ProtocolLib's generic field accessors is no longer possible.
  * All methods return the raw NMS packet, to send one wrap it in a {@link com.comphenix.protocol.events.PacketContainer} with {@code PacketContainer.fromPacket}.
+ *
+ * <p>Since 26.1 the server jar ships with Mojang-mapped names directly
+ * (no obfuscation, no remapper), so the classes below are referenced by
+ * their real Mojang names ({@code net.minecraft.network.protocol.game.*},
+ * {@code net.minecraft.world.phys.Vec3}, …) — there is no obfuscated-name
+ * fallback to maintain. See {@link CraftBukkitClassUtil} for the same
+ * treatment of CraftBukkit classes.
+ *
+ * <p>ProtocolLib is deliberately kept for <i>sending</i> these packets.
+ * Paper's native packet package ({@code io.papermc.paper.event.packet})
+ * was checked against the 26.3 API and contains only four events
+ * (chunk load/unload, client tick end, unchecked sign change) — there is
+ * no general packet send/receive event in Paper, so migrating packet
+ * <i>listening</i> to Paper is not possible; this plugin does not listen
+ * to inbound packets at all, it only sends.
  */
 public final class PacketFactory {
     // Vec3
@@ -34,6 +52,8 @@ public final class PacketFactory {
     private static final Constructor<?> REMOVE_ENTITIES_CTOR;
     // ClientboundSetEntityMotionPacket(int, Vec3)
     private static final Constructor<?> SET_ENTITY_MOTION_CTOR;
+    // ClientboundSetEntityDataPacket(int, List<DataValue<?>>)
+    private static final Constructor<?> SET_ENTITY_DATA_CTOR;
 
     static {
         Class<?> vec3 = ReflectionUtil.findClass("net.minecraft.world.phys.Vec3");
@@ -62,6 +82,9 @@ public final class PacketFactory {
         SET_ENTITY_MOTION_CTOR = ReflectionUtil.findConstructor(
                 ReflectionUtil.findClass("net.minecraft.network.protocol.game.ClientboundSetEntityMotionPacket"),
                 int.class, vec3);
+        SET_ENTITY_DATA_CTOR = ReflectionUtil.findConstructor(
+                ReflectionUtil.findClass("net.minecraft.network.protocol.game.ClientboundSetEntityDataPacket"),
+                int.class, List.class);
     }
 
     private PacketFactory() {
@@ -138,6 +161,33 @@ public final class PacketFactory {
         Object motion = createVec3(velocity.getX(), velocity.getY(), velocity.getZ());
 
         return invokeConstructorChecked(SET_ENTITY_MOTION_CTOR, entityId, motion);
+    }
+
+    /**
+     * Creates a {@code ClientboundSetEntityDataPacket} carrying the entity's
+     * non-default data values, or {@code null} if the values cannot be read
+     * on this server build — the caller should then skip the metadata send
+     * rather than send a malformed packet.
+     *
+     * <p>Built with NMS directly, not ProtocolLib: in 26.3 the packet
+     * carries {@code List<SynchedEntityData.DataValue<?>>}, but ProtocolLib
+     * 5.5.0-SNAPSHOT's watchable conversion still produces the old
+     * {@code DataItem} objects. The server's encoder then throws
+     * {@code ClassCastException: DataItem cannot be cast to DataValue}
+     * while writing the packet, which disconnects the receiving client
+     * with an {@code EncoderException} (seen live on Paper 26.3-244:
+     * every {@code showEntity} re-send of a fake entity killed the
+     * viewer). The values here come from
+     * {@code SynchedEntityData.getNonDefaultValues()} — exactly the set
+     * the vanilla server sends when an entity starts being tracked.
+     * @param entityId The ID to give the fake entity
+     * @param entity The real entity to read the data values from
+     */
+    public static @Nullable Object setEntityData(int entityId, @NotNull Entity entity) {
+        List<Object> values = EntityUtil.getNonDefaultDataValues(entity);
+        if (values == null) { return null; }
+
+        return invokeConstructorChecked(SET_ENTITY_DATA_CTOR, entityId, values);
     }
 
     private static Object createVecDelta(@NotNull Vector offset) {

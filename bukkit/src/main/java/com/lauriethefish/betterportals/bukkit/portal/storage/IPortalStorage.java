@@ -2,8 +2,8 @@ package com.lauriethefish.betterportals.bukkit.portal.storage;
 
 import com.lauriethefish.betterportals.bukkit.config.MiscConfig;
 import com.lauriethefish.betterportals.bukkit.portal.IPortalManager;
+import com.lauriethefish.betterportals.bukkit.util.FoliaScheduler;
 import com.lauriethefish.betterportals.shared.logging.Logger;
-import org.bukkit.Bukkit;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ public abstract class IPortalStorage implements Runnable    {
         int saveInterval = miscConfig.getPortalSaveInterval();
         if(miscConfig.getPortalSaveInterval() > 0) {
             logger.fine("Starting autosave task");
-            Bukkit.getScheduler().runTaskTimer(pl, this, saveInterval, saveInterval);
+            FoliaScheduler.runGlobalAtFixedRate(pl, this, saveInterval, saveInterval);
         }   else    {
             logger.fine("Autosave is disabled");
         }

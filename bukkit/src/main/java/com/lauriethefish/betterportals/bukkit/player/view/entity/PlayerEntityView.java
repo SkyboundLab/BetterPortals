@@ -5,6 +5,7 @@ import com.google.inject.assistedinject.Assisted;
 import com.lauriethefish.betterportals.bukkit.entity.faking.EntityInfo;
 import com.lauriethefish.betterportals.bukkit.entity.faking.EntityTrackingManager;
 import com.lauriethefish.betterportals.bukkit.entity.faking.IEntityPacketManipulator;
+import com.lauriethefish.betterportals.bukkit.entity.faking.MannequinFakePlayerManager;
 import com.lauriethefish.betterportals.bukkit.math.PlaneIntersectionChecker;
 import com.lauriethefish.betterportals.bukkit.portal.IPortal;
 import com.lauriethefish.betterportals.shared.logging.Logger;
@@ -24,16 +25,18 @@ public class PlayerEntityView implements IPlayerEntityView  {
     private final Player player;
     private final IEntityPacketManipulator packetManipulator;
     private final EntityTrackingManager trackingManager;
+    private final MannequinFakePlayerManager mannequinManager;
     private final Map<Entity, EntityInfo> hiddenEntities = new HashMap<>();
     private final Set<Entity> replicatedEntities = new HashSet<>();
 
     @Inject
-    public PlayerEntityView(@Assisted IPortal portal, @Assisted Player player, IEntityPacketManipulator packetManipulator, Logger logger, EntityTrackingManager trackingManager) {
+    public PlayerEntityView(@Assisted IPortal portal, @Assisted Player player, IEntityPacketManipulator packetManipulator, Logger logger, EntityTrackingManager trackingManager, MannequinFakePlayerManager mannequinManager) {
         this.portal = portal;
         this.player = player;
         this.packetManipulator = packetManipulator;
         this.logger = logger;
         this.trackingManager = trackingManager;
+        this.mannequinManager = mannequinManager;
     }
 
     @Override
@@ -51,6 +54,13 @@ public class PlayerEntityView implements IPlayerEntityView  {
 
         for(Entity entity : portal.getEntityList().getOriginEntities()) {
             if(entity == player) {continue;}
+            // Never hide our own Mannequin fakes: they are real entities
+            // standing behind the portal, so this check would otherwise
+            // send the viewer a destroy packet for them (2026-11-06 live
+            // test: the fake appeared for a second, then vanished). They
+            // are also filtered from the origin list itself; this is the
+            // second layer, in case one reaches here another way.
+            if(mannequinManager.isFakePlayer(entity)) {continue;}
 
             // If the line from the player's position to the entity intersects the portal, then hide it since it'll spoil the effect by appearing in front of the blocks
             boolean shouldBeHidden = intersectionChecker.checkIfIntersects(entity.getLocation().toVector());

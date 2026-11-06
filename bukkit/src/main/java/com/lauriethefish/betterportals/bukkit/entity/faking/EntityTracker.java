@@ -3,13 +3,15 @@ package com.lauriethefish.betterportals.bukkit.entity.faking;
 import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.google.inject.Inject;
 import com.google.inject.assistedinject.Assisted;
+import com.lauriethefish.betterportals.bukkit.config.MiscConfig;
 import com.lauriethefish.betterportals.bukkit.config.RenderConfig;
 import com.lauriethefish.betterportals.bukkit.nms.AnimationType;
 import com.lauriethefish.betterportals.bukkit.portal.IPortal;
+import com.lauriethefish.betterportals.bukkit.util.FoliaScheduler;
 import lombok.Getter;
-import org.bukkit.Bukkit;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.LivingEntity;
+import org.bukkit.entity.Mannequin;
 import org.bukkit.entity.Player;
 import org.bukkit.inventory.ItemStack;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -43,8 +45,17 @@ public class EntityTracker implements IEntityTracker    {
     private final int metadataUpdateInterval;
     private int ticksSinceCreated = 0;
 
+    // Mannequin fake-player rendering (see MannequinFakePlayerManager).
+    // One Mannequin per tracked player entity, shared by all viewers of
+    // this portal — the portal transform is viewer-independent. Null while
+    // the packet path is in use, or for non-player entities.
+    private final MannequinFakePlayerManager mannequinManager;
+    private final boolean useMannequin;
+    private Mannequin mannequin;
+    private boolean mannequinFailed;
+
     @Inject
-    public EntityTracker(@Assisted Entity entity, @Assisted IPortal portal, IEntityPacketManipulator packetManipulator, EntityTrackingManager entityTrackingManager, RenderConfig renderConfig, JavaPlugin pl) {
+    public EntityTracker(@Assisted Entity entity, @Assisted IPortal portal, IEntityPacketManipulator packetManipulator, EntityTrackingManager entityTrackingManager, RenderConfig renderConfig, JavaPlugin pl, MannequinFakePlayerManager mannequinManager, MiscConfig miscConfig) {
         // Non-living entities don't have equipment
         this.equipmentWatcher = entity instanceof LivingEntity ? new EntityEquipmentWatcher((LivingEntity) entity) : null;
         this.entity = entity;
@@ -54,9 +65,30 @@ public class EntityTracker implements IEntityTracker    {
         this.packetManipulator = packetManipulator;
         this.metadataUpdateInterval = renderConfig.getEntityMetadataUpdateInterval();
         this.pl = pl;
+        this.mannequinManager = mannequinManager;
+        this.useMannequin = miscConfig.isUseMannequinFakePlayers();
     }
 
     public void update() {
+        // Mannequin mode: the fake is a real entity, so movement, rotation,
+        // pose and equipment are synced with ordinary entity calls instead
+        // of packets. Animations and mounts have no Mannequin equivalent
+        // and are skipped in this mode (a documented limitation).
+        if (mannequin != null) {
+            if (mannequin.isValid() && entity instanceof Player source) {
+                mannequinManager.sync(mannequin, source,
+                        MannequinFakePlayerManager.renderedLocationFor(entityInfo, mannequin.getWorld()));
+                ticksSinceCreated++;
+                return;
+            }
+            // The Mannequin died or was removed out from under us: fall
+            // back to the packet path for the remaining viewers.
+            mannequinManager.unregister(mannequin);
+            mannequin = null;
+            mannequinFailed = true;
+            fallBackToPackets();
+        }
+
         sendMovementUpdates();
 
         // Equipment is disabled for living entities
@@ -101,12 +133,35 @@ public class EntityTracker implements IEntityTracker    {
 
     @Override
     public void onAnimation(@NotNull AnimationType animationType) {
+        // A Mannequin has no arm-swing animation to mirror.
+        if (mannequin != null) { return; }
         packetManipulator.sendEntityAnimation(entityInfo, trackingPlayers, animationType);
     }
 
     @Override
     public void onPickup(@NotNull EntityInfo pickedUp) {
+        if (mannequin != null) { return; }
         packetManipulator.sendEntityPickupItem(entityInfo, pickedUp, trackingPlayers);
+    }
+
+    /**
+     * Re-shows this entity to all current viewers via the packet path.
+     * Used when a Mannequin fake becomes invalid mid-tracking.
+     */
+    private void fallBackToPackets() {
+        for (Player player : new HashSet<>(trackingPlayers)) {
+            boolean sendingPlayerProfile = entity instanceof Player
+                    && !entityInfo.getEntityUniqueId().equals(entityInfo.getEntity().getUniqueId());
+            if (sendingPlayerProfile) {
+                packetManipulator.sendAddPlayerProfile(entityInfo, Collections.singleton(player));
+            }
+            packetManipulator.showEntity(entityInfo, player);
+            if (sendingPlayerProfile) {
+                FoliaScheduler.runDelayedOnEntity(pl, entity,
+                        () -> packetManipulator.sendRemovePlayerProfile(entityInfo, Collections.singleton(player)),
+                        fakePlayerTabListRemoveDelay);
+            }
+        }
     }
 
     // Handles sending all movement and looking packets
@@ -147,6 +202,23 @@ public class EntityTracker implements IEntityTracker    {
 
         trackingPlayers.add(player);
 
+        // Mannequin path (primary for players): a real entity with the
+        // player's skin/equipment/pose, no PLAYER_INFO dance at all.
+        if (useMannequin && !mannequinFailed && entity instanceof Player source) {
+            if (mannequin == null) {
+                mannequin = mannequinManager.spawn(source,
+                        MannequinFakePlayerManager.renderedLocationFor(entityInfo, player.getWorld()));
+                if (mannequin == null) {
+                    mannequinFailed = true;
+                }
+            }
+            if (mannequin != null) {
+                mannequinManager.showTo(mannequin, player);
+                return;
+            }
+            // Spawn failed: fall through to the packet path below.
+        }
+
         // If the tracker's entity UID is different, and they are a player, we must send a player info packet to add their profile to the server
         boolean sendingPlayerProfile = !entityInfo.getEntityUniqueId().equals(entityInfo.getEntity().getUniqueId()) && entityInfo.getEntity() instanceof Player;
         if(sendingPlayerProfile) {
@@ -156,7 +228,11 @@ public class EntityTracker implements IEntityTracker    {
         packetManipulator.showEntity(entityInfo, player);
 
         if(sendingPlayerProfile) {
-            Bukkit.getScheduler().runTaskLater(pl, () -> packetManipulator.sendRemovePlayerProfile(entityInfo, Collections.singleton(player)), fakePlayerTabListRemoveDelay);
+            // The tab-list removal follows the tracked entity's scheduler
+            // (Folia: the entity scheduler; Paper/Spigot: the Bukkit scheduler).
+            FoliaScheduler.runDelayedOnEntity(pl, entity,
+                    () -> packetManipulator.sendRemovePlayerProfile(entityInfo, Collections.singleton(player)),
+                    fakePlayerTabListRemoveDelay);
         }
     }
 
@@ -164,6 +240,18 @@ public class EntityTracker implements IEntityTracker    {
         if(!trackingPlayers.contains(player)) {throw new IllegalArgumentException("Cannot stop player from tracking entity, they weren't viewing in the first place");}
 
         trackingPlayers.remove(player);
+
+        if (mannequin != null) {
+            if (sendPackets) {
+                mannequinManager.hideFrom(mannequin, player);
+            }
+            if (trackingPlayers.isEmpty()) {
+                mannequinManager.remove(mannequin);
+                mannequin = null;
+            }
+            return;
+        }
+
         if(sendPackets) {
             packetManipulator.hideEntity(entityInfo, player);
         }
