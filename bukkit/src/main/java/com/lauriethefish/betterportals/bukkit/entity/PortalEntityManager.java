@@ -13,11 +13,13 @@ import com.lauriethefish.betterportals.bukkit.player.IPlayerData;
 import com.lauriethefish.betterportals.bukkit.player.IPlayerDataManager;
 import com.lauriethefish.betterportals.bukkit.portal.IPortal;
 import com.lauriethefish.betterportals.bukkit.portal.predicate.IPortalPredicateManager;
+import com.lauriethefish.betterportals.bukkit.util.MaterialUtil;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import com.lauriethefish.betterportals.shared.net.RequestException;
 import com.lauriethefish.betterportals.shared.net.requests.TeleportRequest;
 import lombok.Getter;
 import org.bukkit.Location;
+import org.bukkit.World;
 import org.bukkit.entity.Entity;
 import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -74,7 +76,24 @@ public class PortalEntityManager implements IPortalEntityManager {
             updateEntityLists();
         }
 
-        handleTeleportation();
+        handleTeleportation(false);
+    }
+
+    @Override
+    public void updateNonPlayerTeleportation() {
+        if(!miscConfig.isNonPlayerTeleportationWithoutPlayers()) { return; }
+        if(portal.isCrossServer() || !portal.allowsNonPlayerTeleportation()) { return; }
+
+        // Vanilla only teleports entities in loaded chunks, and this must
+        // never force-load a chunk just to look for mobs.
+        Location origin = portal.getOriginPos().getLocation();
+        World originWorld = origin == null ? null : origin.getWorld();
+        if(originWorld == null || !originWorld.isChunkLoaded(origin.getBlockX() >> 4, origin.getBlockZ() >> 4)) { return; }
+
+        // Origin list only: destination entities are for rendering through
+        // the portal, which only matters while a player is viewing it.
+        refreshOriginEntities();
+        handleTeleportation(true);
     }
 
     private void updateEntityLists() {
@@ -82,6 +101,10 @@ public class PortalEntityManager implements IPortalEntityManager {
             destinationEntities = getNearbyEntities(destinationEntities, portal.getDestPos());
         }
 
+        refreshOriginEntities();
+    }
+
+    private void refreshOriginEntities() {
         // Copy the old entities over to a new hashmap
         Map<Entity, Location> oldOriginEntities = originEntities;
         originEntities = new HashMap<>();
@@ -98,19 +121,29 @@ public class PortalEntityManager implements IPortalEntityManager {
         });
     }
 
-    private void handleTeleportation() {
+    private void handleTeleportation(boolean nonPlayersOnly) {
+        if(originEntities == null) { return; }
         List<Entity> toRemove = new ArrayList<>();
 
         // Check each entity at the origin to see if it teleported
         for(Map.Entry<Entity, Location> entry : originEntities.entrySet()) {
             Entity entity = entry.getKey();
-            // Only players can teleport through cross-server portals
-            if (!(entity instanceof Player) && (!portal.allowsNonPlayerTeleportation() || portal.isCrossServer())) {
+            Location lastPosition = entry.getValue();
+            Location currentPosition = entity.getLocation();
+
+            // Players are only ever teleported by the active path: a player
+            // standing in a portal always activates it. Skipping them here
+            // still refreshes their stored position (below).
+            if(nonPlayersOnly && entity instanceof Player) {
+                entry.setValue(currentPosition);
                 continue;
             }
 
-            Location lastPosition = entry.getValue();
-            Location currentPosition = entity.getLocation();
+            // Only players can teleport through cross-server portals
+            if (!(entity instanceof Player) && (!portal.allowsNonPlayerTeleportation() || portal.isCrossServer())) {
+                entry.setValue(currentPosition);
+                continue;
+            }
 
             // Use an intersection check to see if it moved through the portal
             if (lastPosition != null) {
@@ -118,8 +151,19 @@ public class PortalEntityManager implements IPortalEntityManager {
                         .createIntersectionChecker(lastPosition.toVector())
                         .checkIfIntersects(currentPosition.toVector());
 
+                // Vanilla also teleports an entity that is simply standing
+                // in portal blocks, with no wait and no plane crossing:
+                // a mob spawned/pushed into a portal, or an item/minecart
+                // at rest in one, goes through within a couple of ticks
+                // (measured on plain Paper 1.21.8: still pig ~4 ticks,
+                // item ~5, minecart ~6). The crossing check alone never
+                // fires for those, so they would sit in the portal forever.
+                // Players are excluded on purpose: standing in a portal
+                // looking through it is the point of the plugin, and a
+                // dwell check would teleport a player who is only viewing.
+                boolean isStandingInPortal = !(entity instanceof Player) && isInsidePortalBlocks(entity);
 
-                if (didWalkThroughPortal && checkCanTeleport(entity)) {
+                if ((didWalkThroughPortal || isStandingInPortal) && checkCanTeleport(entity)) {
                     if (portal.isCrossServer()) {
                         assert entity instanceof Player;
                         teleportCrossServer((Player) entity);
@@ -134,6 +178,42 @@ public class PortalEntityManager implements IPortalEntityManager {
             entry.setValue(currentPosition);
         }
         toRemove.forEach(originEntities::remove);
+    }
+
+    /**
+     * Whether any block overlapped by {@code entity}'s feet column is a
+     * portal block. Every plugin portal (nether or custom) is built from
+     * {@link MaterialUtil#PORTAL_MATERIAL}, so this is the same test for
+     * both kinds.
+     */
+    private boolean isInsidePortalBlocks(@NotNull Entity entity) {
+        Location loc = entity.getLocation();
+        World world = loc.getWorld();
+        if(world == null) { return false; }
+        return isInsidePortalBlocks(loc.getY(), entity.getHeight(),
+                y -> world.getBlockAt(loc.getBlockX(), y, loc.getBlockZ()).getType() == MaterialUtil.PORTAL_MATERIAL);
+    }
+
+    /**
+     * Pure form of the in-portal test, for unit tests: {@code isPortalBlock}
+     * answers for each block-Y in the entity's feet column. The entity
+     * occupies blocks {@code floor(feetY)} .. {@code floor(feetY + height)}
+     * (exclusive at the top, so a 1-block-tall entity at exactly y=65
+     * occupies only block 65).
+     */
+    public static boolean isInsidePortalBlocks(double feetY, double height, @NotNull java.util.function.IntPredicate isPortalBlock) {
+        int firstBlock = (int) Math.floor(feetY);
+        int lastBlock = (int) Math.floor(feetY + height - 1e-6);
+        for(int y = firstBlock; y <= lastBlock; y++) {
+            if(isPortalBlock.test(y)) { return true; }
+        }
+        return false;
+    }
+
+    /** Whether the activation-independent non-player sweep may run for a portal. Pure logic, for unit tests. */
+    public static boolean shouldSweepNonPlayerTeleportation(boolean crossServer, boolean allowsNonPlayerTeleportation,
+                                                     boolean originChunkLoaded, boolean sweepEnabled) {
+        return sweepEnabled && !crossServer && allowsNonPlayerTeleportation && originChunkLoaded;
     }
 
     public Collection<Entity> getOriginEntities() {

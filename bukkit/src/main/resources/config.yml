@@ -26,6 +26,14 @@ enableEntitySupport: true
 checkForEntitiesEveryTick: false
 entityCheckInterval: 7 # How often the portal will check for surrounding entities
 
+# If true, mobs, items, minecarts and other non-player entities teleport
+# through portals even when no player is near the portal, like vanilla:
+# any entity standing in portal blocks in a loaded chunk goes through.
+# Set to false only to save the per-portal scan on very large servers;
+# with it off, portal farms stall until a player comes within
+# portalActivationDistance of the portal.
+nonPlayerTeleportationWithoutPlayers: true
+
 # Interval for sending entity metadata updates in ticks (higher will improve performance, this is an expensive process, both for network bandwidth and CPU)
 entityMetadataUpdateInterval: 6
 

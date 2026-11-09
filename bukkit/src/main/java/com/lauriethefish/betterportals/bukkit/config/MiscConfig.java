@@ -18,6 +18,16 @@ public class MiscConfig {
     @Getter private boolean entitySupportEnabled;
     @Getter private int entityCheckInterval;
 
+    /**
+     * If true, non-player entities (mobs, items, minecarts, ...) are checked
+     * for portal teleportation even when no player is near the portal.
+     * Vanilla teleports any entity standing in portal blocks in a loaded
+     * chunk; without this, a portal only teleports mobs while a player is
+     * within portalActivationDistance, so chunk-loaded farms stall.
+     * Disable only to save the per-portal scan on very large servers.
+     */
+    @Getter private boolean nonPlayerTeleportationWithoutPlayers;
+
     @Getter private int teleportCooldown;
     @Getter private boolean updateCheckEnabled;
 
@@ -45,6 +55,10 @@ public class MiscConfig {
 
         boolean disableEntityCheckInterval = config.getBoolean("checkForEntitiesEveryTick");
         entityCheckInterval = disableEntityCheckInterval ? 1 : config.getInt("entityCheckInterval");
+        // getBoolean with an explicit default: older config files that predate
+        // this key must keep the vanilla-parity behaviour (on), not silently
+        // turn it off.
+        nonPlayerTeleportationWithoutPlayers = config.getBoolean("nonPlayerTeleportationWithoutPlayers", true);
         updateCheckEnabled = config.getBoolean("enableUpdateCheck");
 
         Level logLevel;

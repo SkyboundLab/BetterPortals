@@ -18,6 +18,22 @@ public interface IPortalEntityManager {
      */
     void update(int ticksSinceActivated);
 
+    /**
+     * Teleports non-player entities through this portal when no player is
+     * around to activate it. Vanilla teleports any entity standing in
+     * portal blocks in a loaded chunk, so portal farms (gold farms,
+     * item/minecart transport, ...) must not depend on a player being
+     * within activation distance. Players are never teleported by this:
+     * a player in a portal always activates it, so the normal
+     * {@link #update(int)} path handles them.
+     *
+     * <p>Cheap by design: it does nothing when the portal is cross-server,
+     * forbids non-player teleportation, has the sweep disabled in config,
+     * or its origin chunk is not loaded, and it never touches the
+     * destination-entity list used for rendering through portals.
+     */
+    void updateNonPlayerTeleportation();
+
     interface Factory {
         IPortalEntityManager create(IPortal portal, boolean requireDestination);
     }
