@@ -161,7 +161,17 @@ public class PortalEntityManager implements IPortalEntityManager {
                 // Players are excluded on purpose: standing in a portal
                 // looking through it is the point of the plugin, and a
                 // dwell check would teleport a player who is only viewing.
-                boolean isStandingInPortal = !(entity instanceof Player) && isInsidePortalBlocks(entity);
+                // But the dwell check must NOT fire for an entity that is
+                // moving AWAY from the plane — one that just arrived at
+                // the destination and is leaving the portal (a crossbow
+                // arrow shot through it, 2026-11-09). Without that guard
+                // the destination's own dwell check teleports it straight
+                // back, and the two portals bounce it between them every
+                // tick, so the arrow looks stuck in the portal instead of
+                // flying on. Standing still (velocity ~0) is not moving
+                // away, so mobs at rest in a portal still teleport.
+                boolean isStandingInPortal = !(entity instanceof Player) && isInsidePortalBlocks(entity)
+                        && !isMovingAwayFromPortal(entity);
 
                 if ((didWalkThroughPortal || isStandingInPortal) && checkCanTeleport(entity)) {
                     if (portal.isCrossServer()) {
@@ -208,6 +218,31 @@ public class PortalEntityManager implements IPortalEntityManager {
             if(isPortalBlock.test(y)) { return true; }
         }
         return false;
+    }
+
+    /**
+     * Whether {@code entity} is moving away from this portal's plane, i.e.
+     * leaving the portal rather than going through it. The plane passes
+     * through the portal's origin position (always the centre of the
+     * plane) with normal {@code originPos.getDirection()}.
+     */
+    private boolean isMovingAwayFromPortal(@NotNull Entity entity) {
+        Vector normal = portal.getOriginPos().getDirection().toVector();
+        Vector toEntity = entity.getLocation().toVector().subtract(portal.getOriginPos().getVector());
+        return isMovingAwayFromPortalPlane(toEntity.dot(normal), entity.getVelocity().dot(normal));
+    }
+
+    /**
+     * Pure form of the moving-away test, for unit tests:
+     * {@code signedDistance} is the entity's signed distance from the
+     * portal plane along the plane normal, {@code velocityAlongNormal} its
+     * velocity component along that normal. It is moving away when both
+     * have the same sign (and the velocity is non-zero): on the + side
+     * moving further +, or on the - side moving further -. Standing still
+     * (velocity 0) or exactly on the plane (distance 0) is not moving away.
+     */
+    public static boolean isMovingAwayFromPortalPlane(double signedDistance, double velocityAlongNormal) {
+        return signedDistance * velocityAlongNormal > 0.0;
     }
 
     /** Whether the activation-independent non-player sweep may run for a portal. Pure logic, for unit tests. */

@@ -8,6 +8,9 @@ import static org.junit.jupiter.api.Assertions.*;
  * any non-player entity standing in portal blocks teleports (no wait, no
  * plane crossing), and the activation-independent sweep runs for loaded,
  * non-cross-server portals that allow non-player teleportation.
+ * The dwell check never fires for an entity moving away from the portal
+ * plane, so a projectile that just arrived at the destination is not
+ * bounced straight back (2026-11-09 crossbow arrow stuck report).
  * These cover the pure helpers only; the live behaviour is verified by the
  * mineflayer bot tests (still pig / item / minecart, with and without a
  * player near the portal).
@@ -76,5 +79,56 @@ public class MobPortalTeleportationTests {
     @Test
     public void testSweepSkipsWhenDisabledInConfig() {
         assertFalse(PortalEntityManager.shouldSweepNonPlayerTeleportation(false, true, true, false));
+    }
+
+    // --- isMovingAwayFromPortalPlane(signedDistance, velocityAlongNormal) ---
+
+    @Test
+    public void testArrowJustArrivedMovingAway() {
+        // Crossbow arrow teleported to the destination, 0.3 past the plane,
+        // still flying away at 3 blocks/tick: moving away, so the dwell
+        // check must NOT bounce it back (2026-11-09 arrow stuck report).
+        assertTrue(PortalEntityManager.isMovingAwayFromPortalPlane(0.3, 3.0));
+    }
+
+    @Test
+    public void testArrowApproachingPortal() {
+        // Arrow 2 blocks before the plane, flying toward it: not moving
+        // away, so the dwell check may teleport it through.
+        assertFalse(PortalEntityManager.isMovingAwayFromPortalPlane(-2.0, 3.0));
+    }
+
+    @Test
+    public void testArrowLeavingOnFarSide() {
+        // Same as arriving, but on the - side of the plane, flying further -.
+        assertTrue(PortalEntityManager.isMovingAwayFromPortalPlane(-0.3, -3.0));
+    }
+
+    @Test
+    public void testStandingMobIsNotMovingAway() {
+        // Mob at rest in the portal blocks: velocity 0, so the dwell check
+        // still fires and the farm behaviour is unchanged.
+        assertFalse(PortalEntityManager.isMovingAwayFromPortalPlane(0.3, 0.0));
+    }
+
+    @Test
+    public void testMobWalkingAwayFromPlane() {
+        // Mob that just arrived and walks away from the plane: not bounced
+        // back, it keeps walking (vanilla: only walking back in re-enters).
+        assertTrue(PortalEntityManager.isMovingAwayFromPortalPlane(0.3, 0.2));
+    }
+
+    @Test
+    public void testMobWalkingBackTowardPlane() {
+        // Mob on the + side walking back toward the plane: not moving away,
+        // so the dwell check teleports it back through.
+        assertFalse(PortalEntityManager.isMovingAwayFromPortalPlane(0.3, -0.2));
+    }
+
+    @Test
+    public void testEntityExactlyOnPlaneIsNotMovingAway() {
+        // On the plane itself the signed distance is 0, so it is never
+        // moving away however fast it goes: the dwell check may fire.
+        assertFalse(PortalEntityManager.isMovingAwayFromPortalPlane(0.0, 3.0));
     }
 }
