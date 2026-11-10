@@ -12,8 +12,12 @@ import com.lauriethefish.betterportals.bukkit.player.PlayerDataManager;
 import com.lauriethefish.betterportals.bukkit.portal.IPortal;
 import com.lauriethefish.betterportals.bukkit.portal.IPortalActivityManager;
 import com.lauriethefish.betterportals.bukkit.portal.IPortalManager;
+import com.lauriethefish.betterportals.bukkit.portal.spawning.PortalRecovery;
 import com.lauriethefish.betterportals.bukkit.util.FoliaScheduler;
+import com.lauriethefish.betterportals.bukkit.util.MaterialUtil;
 import com.lauriethefish.betterportals.shared.logging.Logger;
+import org.bukkit.Location;
+import org.bukkit.entity.Player;
 import org.bukkit.plugin.java.JavaPlugin;
 
 /**
@@ -32,6 +36,7 @@ public class MainUpdate implements Runnable {
     private final IExternalBlockWatcherManager blockWatcherManager;
     private final IPortalManager portalManager;
     private final MiscConfig miscConfig;
+    private final PortalRecovery portalRecovery;
     private final Logger logger;
 
     private long tickCount = 0;
@@ -42,7 +47,7 @@ public class MainUpdate implements Runnable {
                       IPortalActivityManager activityManager,
                       EntityTrackingManager entityTrackingManager,
                       ClientRequestHandler requestHandler,
-                      IExternalBlockWatcherManager blockWatcherManager, IPortalManager portalManager, MiscConfig miscConfig, Logger logger) {
+                      IExternalBlockWatcherManager blockWatcherManager, IPortalManager portalManager, MiscConfig miscConfig, PortalRecovery portalRecovery, Logger logger) {
         this.pl = pl;
         this.playerDataManager = playerDataManager;
         this.activityManager = activityManager;
@@ -51,6 +56,7 @@ public class MainUpdate implements Runnable {
         this.blockWatcherManager = blockWatcherManager;
         this.portalManager = portalManager;
         this.miscConfig = miscConfig;
+        this.portalRecovery = portalRecovery;
         this.logger = logger;
     }
 
@@ -89,6 +95,14 @@ public class MainUpdate implements Runnable {
                 updateNonPlayerTeleportation();
             }
 
+            // Portals that exist as blocks but were never registered (lost
+            // from portals.yml by a crash, a restart before the autosave,
+            // or an update) are recovered the first time a player stands
+            // in one, so nobody has to rebuild them. Cheap: two block
+            // lookups per player per tick; the recovery itself only runs
+            // for an unregistered portal block, and is throttled.
+            recoverUnregisteredPortals();
+
             // Deactivates and view-deactivates any unused portals that were active last tick
             activityManager.postUpdate();
 
@@ -113,6 +127,35 @@ public class MainUpdate implements Runnable {
             }   catch(RuntimeException ex) {
                 // One broken portal must not stop the others teleporting.
                 logger.warning("Failed to update non-player teleportation for a portal at %s", portal.getOriginPos());
+                ex.printStackTrace();
+            }
+        }
+    }
+
+    private void recoverUnregisteredPortals() {
+        for(IPlayerData playerData : playerDataManager.getPlayers()) {
+            Player player;
+            try {
+                player = playerData.getPlayer();
+            }   catch(RuntimeException ex) {
+                continue;
+            }
+            Location loc = player.getLocation();
+            Location portalBlockLoc = null;
+            if(loc.getBlock().getType() == MaterialUtil.PORTAL_MATERIAL) {
+                portalBlockLoc = loc;
+            }   else if(player.getEyeLocation().getBlock().getType() == MaterialUtil.PORTAL_MATERIAL) {
+                portalBlockLoc = player.getEyeLocation();
+            }
+            if(portalBlockLoc == null) { continue; }
+
+            try {
+                portalRecovery.recoverPortalAt(portalBlockLoc);
+            }   catch(RuntimeException ex) {
+                // Recovery is best-effort: a failure here must not break
+                // the main update, and the player falls back to the
+                // vanilla portal warning as before.
+                logger.warning("Failed to recover unregistered portal at %s", portalBlockLoc.toVector());
                 ex.printStackTrace();
             }
         }

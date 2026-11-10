@@ -9,6 +9,7 @@ import com.lauriethefish.betterportals.bukkit.portal.IPortal;
 import com.lauriethefish.betterportals.bukkit.portal.IPortalManager;
 import com.lauriethefish.betterportals.bukkit.portal.spawning.IPortalSpawner;
 import com.lauriethefish.betterportals.bukkit.portal.spawning.PortalSpawnPosition;
+import com.lauriethefish.betterportals.bukkit.portal.storage.IPortalStorage;
 import com.lauriethefish.betterportals.shared.logging.Logger;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -22,6 +23,7 @@ import org.bukkit.event.world.PortalCreateEvent;
 import org.bukkit.util.Vector;
 import org.jetbrains.annotations.NotNull;
 
+import java.io.IOException;
 import java.util.List;
 import java.util.UUID;
 
@@ -31,15 +33,17 @@ public class SpawningEvents implements Listener {
     private final IPortal.Factory portalFactory;
     private final PortalSpawnConfig spawnConfig;
     private final MessageConfig messageConfig;
+    private final IPortalStorage portalStorage;
     private final Logger logger;
 
     @Inject
-    public SpawningEvents(IEventRegistrar eventRegistrar, IPortalSpawner portalSpawnChecker, IPortalManager portalManager, IPortal.Factory portalFactory, PortalSpawnConfig spawnConfig, MessageConfig messageConfig, Logger logger) {
+    public SpawningEvents(IEventRegistrar eventRegistrar, IPortalSpawner portalSpawnChecker, IPortalManager portalManager, IPortal.Factory portalFactory, PortalSpawnConfig spawnConfig, MessageConfig messageConfig, IPortalStorage portalStorage, Logger logger) {
         this.portalSpawnChecker = portalSpawnChecker;
         this.portalManager = portalManager;
         this.portalFactory = portalFactory;
         this.spawnConfig = spawnConfig;
         this.messageConfig = messageConfig;
+        this.portalStorage = portalStorage;
         this.logger = logger;
 
         eventRegistrar.register(this);
@@ -126,6 +130,16 @@ public class SpawningEvents implements Listener {
 
         portalManager.registerPortal(portal);
         portalManager.registerPortal(reversePortal);
+
+        // Persist immediately: portals were only saved on the 5-minute
+        // autosave and on a clean shutdown, so a portal lit shortly
+        // before a restart or a crash was lost from portals.yml and the
+        // player had to rebuild it. Saving here closes that window.
+        try {
+            portalStorage.savePortals();
+        }   catch(IOException | RuntimeException ex) {
+            logger.warning("Failed to save portals after registering a new portal: %s", ex.getMessage());
+        }
     }
 
     @NotNull
