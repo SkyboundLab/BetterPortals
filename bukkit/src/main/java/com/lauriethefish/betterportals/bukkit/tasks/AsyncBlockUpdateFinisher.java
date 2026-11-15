@@ -26,7 +26,6 @@ public class AsyncBlockUpdateFinisher extends BlockUpdateFinisher implements Run
 
     @Override
     public void start() {
-        // Async scheduler on Folia/Paper, async Bukkit task on Spigot.
         repeatingTask = FoliaScheduler.runAsyncAtFixedRate(pl, this, 0, 1);
     }
 

@@ -39,8 +39,6 @@ public class DimensionBlendManager implements IDimensionBlendManager    {
     }
 
     private @NotNull Material findFillInBlock(@NotNull Location destination) {
-        // Dimension-keyed (see DimensionUtil): datapack dimensions have no
-        // Environment of their own and get the overworld-like fill.
         org.bukkit.World world = Objects.requireNonNull(destination.getWorld(), "World of destination location cannot be null");
         if (com.lauriethefish.betterportals.bukkit.util.DimensionUtil.isNether(world)) {
             return Material.NETHERRACK;

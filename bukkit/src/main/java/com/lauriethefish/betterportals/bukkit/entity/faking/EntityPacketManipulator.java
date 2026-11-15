@@ -91,7 +91,6 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
         int yaw = RotationUtil.getPacketRotationInt(renderedPos.getYaw());
         int pitch = RotationUtil.getPacketRotationInt(renderedPos.getPitch());
 
-        // Hanging entities (e.g. item frames and paintings) use block faces for their rotation
         if(entityInfo.getEntity() instanceof Hanging) {
             // The spawn packet stores the 3D direction ID as its last integer field (after the entity ID)
             StructureModifier<Integer> integers = packet.getIntegers();
@@ -100,7 +99,6 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
 
             if(currentDirection != null) {
                 EnumWrappers.Direction rotated = RotationUtil.rotateBy(currentDirection, entityInfo.getRotation());
-                // Make sure to catch this - it should never happen unless something's gone very wrong
                 if (rotated == null) {
                     throw new IllegalStateException("Portal attempted to rotate a hanging entity to an invalid block direction");
                 }
@@ -108,7 +106,6 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
             }
         }
 
-        // Set the modified pitch and yaw (xRot, yRot)
         packet.getBytes().write(0, (byte) pitch);
         packet.getBytes().write(1, (byte) yaw);
     }
@@ -202,12 +199,6 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
 
     @Override
     public void sendMetadata(EntityInfo tracker, Collection<Player> players) {
-        // Built with NMS directly (see PacketFactory.setEntityData):
-        // ProtocolLib 5.5.0-SNAPSHOT's watchable conversion emits DataItems,
-        // which the 26.3 packet rejects and the encoder then disconnects
-        // the receiving client. A null packet means the values could not be
-        // read on this build — skipping the send is safe (metadata is
-        // appearance data), sending a malformed packet is not.
         Object packet = PacketFactory.setEntityData(tracker.getEntityId(), tracker.getEntity());
         if (packet == null) { return; }
 

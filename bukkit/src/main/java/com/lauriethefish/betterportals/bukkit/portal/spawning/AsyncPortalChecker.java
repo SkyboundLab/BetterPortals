@@ -46,22 +46,8 @@ public class AsyncPortalChecker implements Runnable {
     private PortalSpawnPosition currentClosest;
     private double closestDistance = Double.POSITIVE_INFINITY;
 
-    /**
-     * Chunks skipped on the first pass because they were not loaded yet.
-     * The search area is force-loaded (by coordinates, asynchronously) when
-     * the search starts, so these will have arrived by the time the first
-     * pass finishes; they get a second pass below.
-     */
     private List<ChunkPosition> skippedChunks = new ArrayList<>();
-    /** Whether the second pass over {@link #skippedChunks} is running. */
     private boolean secondPass = false;
-    /**
-     * Whether {@link #onFinish()} has run. The repeating task is cancelled
-     * there, but if the scheduler fires once more anyway the callback must
-     * never run twice: a second run would start a second spawn search and
-     * build a second destination portal (2026-11-06 live test: ~30 portals
-     * around one lit portal).
-     */
     private boolean finished = false;
 
     private int updateCount;
@@ -87,15 +73,12 @@ public class AsyncPortalChecker implements Runnable {
             spawnPos.clone().add(PORTAL_SEARCH_RADIUS, 0.0, PORTAL_SEARCH_RADIUS)
         );
 
-        // Global repeating task: the search roams a 128-block spiral across
-        // many regions, so no single region owns it. On Folia/Paper this is
-        // the global region scheduler; on Spigot the Bukkit scheduler.
         this.repeatingTask = FoliaScheduler.runGlobalAtFixedRate(pl, this, 1, 1);
     }
 
     @Override
     public void run() {
-        if (finished) { return; } // The task fired once more after finishing; ignore it.
+        if (finished) { return; }
         updateCount += 1;
 
         OperationTimer timer = new OperationTimer();
@@ -105,9 +88,6 @@ public class AsyncPortalChecker implements Runnable {
         while(timer.getTimeTakenMillis() < config.getAllowedSpawnTimePerTick()) {
             if(!iterator.hasNext()) {
                 if(!secondPass && !skippedChunks.isEmpty()) {
-                    // Give the skipped chunks a second pass: the search area
-                    // was force-loaded when the search started, so by now
-                    // (the first pass takes many ticks) they will have arrived.
                     iterator = skippedChunks.iterator();
                     skippedChunks = new ArrayList<>();
                     secondPass = true;
@@ -122,7 +102,7 @@ public class AsyncPortalChecker implements Runnable {
     }
 
     private void onFinish() {
-        if (finished) { return; } // Never run the callback twice (see field comment).
+        if (finished) { return; }
         finished = true;
         logger.fine("Finished delayed portal check within %d ticks", updateCount);
         repeatingTask.cancel();
@@ -131,11 +111,6 @@ public class AsyncPortalChecker implements Runnable {
 
     // Checks this chunk to see if there are any valid positions in it closer than our current closest
     private void checkChunk(ChunkPosition chunk) {
-        // Never load chunks from the spawn search: getBlockAt/getChunk load
-        // (and possibly generate) the chunk synchronously on the main thread,
-        // which stalled the server for seconds every time a portal was lit
-        // (2026-11-06 live test). Unloaded chunks are skipped and revisited
-        // on the second pass, once the force-loaded area has arrived.
         if(!chunk.isLoaded()) {
             if(!secondPass) {
                 skippedChunks.add(chunk);

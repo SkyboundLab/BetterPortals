@@ -63,9 +63,6 @@ public class MainUpdate implements Runnable {
     private FoliaScheduler.TaskHandle tickTask;
 
     public void start() {
-        // Global region scheduler on Folia/Paper (the global region thread
-        // is the closest equivalent to Paper's single main thread), plain
-        // Bukkit scheduler on Spigot — see FoliaScheduler.
         tickTask = FoliaScheduler.runGlobalAtFixedRate(pl, this, 0L, 1L);
     }
 
@@ -84,23 +81,10 @@ public class MainUpdate implements Runnable {
             // Update replicated entities
             entityTrackingManager.update();
 
-            // Mobs/items/minecarts through portals with no player nearby:
-            // vanilla teleports any entity in portal blocks in a loaded
-            // chunk, so this runs on the same cadence as the per-portal
-            // entity check, for every registered portal. Active portals
-            // already teleported their mobs above; the sweep is idempotent
-            // for them (teleported entities are removed from the origin
-            // list), and it never touches players or portal rendering.
             if(tickCount % Math.max(1, miscConfig.getEntityCheckInterval()) == 0) {
                 updateNonPlayerTeleportation();
             }
 
-            // Portals that exist as blocks but were never registered (lost
-            // from portals.yml by a crash, a restart before the autosave,
-            // or an update) are recovered the first time a player stands
-            // in one, so nobody has to rebuild them. Cheap: two block
-            // lookups per player per tick; the recovery itself only runs
-            // for an unregistered portal block, and is throttled.
             recoverUnregisteredPortals();
 
             // Deactivates and view-deactivates any unused portals that were active last tick
@@ -125,7 +109,6 @@ public class MainUpdate implements Runnable {
                     entityList.updateNonPlayerTeleportation();
                 }
             }   catch(RuntimeException ex) {
-                // One broken portal must not stop the others teleporting.
                 logger.warning("Failed to update non-player teleportation for a portal at %s", portal.getOriginPos());
                 ex.printStackTrace();
             }
@@ -152,9 +135,6 @@ public class MainUpdate implements Runnable {
             try {
                 portalRecovery.recoverPortalAt(portalBlockLoc);
             }   catch(RuntimeException ex) {
-                // Recovery is best-effort: a failure here must not break
-                // the main update, and the player falls back to the
-                // vanilla portal warning as before.
                 logger.warning("Failed to recover unregistered portal at %s", portalBlockLoc.toVector());
                 ex.printStackTrace();
             }

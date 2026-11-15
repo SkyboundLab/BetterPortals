@@ -45,10 +45,6 @@ public class EntityTracker implements IEntityTracker    {
     private final int metadataUpdateInterval;
     private int ticksSinceCreated = 0;
 
-    // Mannequin fake-player rendering (see MannequinFakePlayerManager).
-    // One Mannequin per tracked player entity, shared by all viewers of
-    // this portal — the portal transform is viewer-independent. Null while
-    // the packet path is in use, or for non-player entities.
     private final MannequinFakePlayerManager mannequinManager;
     private final boolean useMannequin;
     private Mannequin mannequin;
@@ -70,10 +66,6 @@ public class EntityTracker implements IEntityTracker    {
     }
 
     public void update() {
-        // Mannequin mode: the fake is a real entity, so movement, rotation,
-        // pose and equipment are synced with ordinary entity calls instead
-        // of packets. Animations and mounts have no Mannequin equivalent
-        // and are skipped in this mode (a documented limitation).
         if (mannequin != null) {
             if (mannequin.isValid() && entity instanceof Player source) {
                 mannequinManager.sync(mannequin, source,
@@ -81,8 +73,6 @@ public class EntityTracker implements IEntityTracker    {
                 ticksSinceCreated++;
                 return;
             }
-            // The Mannequin died or was removed out from under us: fall
-            // back to the packet path for the remaining viewers.
             mannequinManager.unregister(mannequin);
             mannequin = null;
             mannequinFailed = true;
@@ -133,7 +123,6 @@ public class EntityTracker implements IEntityTracker    {
 
     @Override
     public void onAnimation(@NotNull AnimationType animationType) {
-        // A Mannequin has no arm-swing animation to mirror.
         if (mannequin != null) { return; }
         packetManipulator.sendEntityAnimation(entityInfo, trackingPlayers, animationType);
     }
@@ -144,10 +133,6 @@ public class EntityTracker implements IEntityTracker    {
         packetManipulator.sendEntityPickupItem(entityInfo, pickedUp, trackingPlayers);
     }
 
-    /**
-     * Re-shows this entity to all current viewers via the packet path.
-     * Used when a Mannequin fake becomes invalid mid-tracking.
-     */
     private void fallBackToPackets() {
         for (Player player : new HashSet<>(trackingPlayers)) {
             boolean sendingPlayerProfile = entity instanceof Player
@@ -202,8 +187,6 @@ public class EntityTracker implements IEntityTracker    {
 
         trackingPlayers.add(player);
 
-        // Mannequin path (primary for players): a real entity with the
-        // player's skin/equipment/pose, no PLAYER_INFO dance at all.
         if (useMannequin && !mannequinFailed && entity instanceof Player source) {
             if (mannequin == null) {
                 mannequin = mannequinManager.spawn(source,
@@ -216,7 +199,6 @@ public class EntityTracker implements IEntityTracker    {
                 mannequinManager.showTo(mannequin, player);
                 return;
             }
-            // Spawn failed: fall through to the packet path below.
         }
 
         // If the tracker's entity UID is different, and they are a player, we must send a player info packet to add their profile to the server
@@ -228,8 +210,6 @@ public class EntityTracker implements IEntityTracker    {
         packetManipulator.showEntity(entityInfo, player);
 
         if(sendingPlayerProfile) {
-            // The tab-list removal follows the tracked entity's scheduler
-            // (Folia: the entity scheduler; Paper/Spigot: the Bukkit scheduler).
             FoliaScheduler.runDelayedOnEntity(pl, entity,
                     () -> packetManipulator.sendRemovePlayerProfile(entityInfo, Collections.singleton(player)),
                     fakePlayerTabListRemoveDelay);

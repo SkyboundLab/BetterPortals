@@ -93,7 +93,7 @@ backgroundBlock: ''
 teleportCooldown: 2 # How long to wait before a player can go back after going through a portal (0 to disable)
 
 # Render players seen through portals as real Mannequin entities (1.21.9+)
-# instead of PLAYER_INFO + spawn packets. More robust across versions; falls
+# instead of PLAYER_INFO + spawn packets. Works across versions; falls
 # back to the packet path automatically if Mannequins cannot be spawned.
 mannequinFakePlayers: true
 

@@ -131,10 +131,6 @@ public class SpawningEvents implements Listener {
         portalManager.registerPortal(portal);
         portalManager.registerPortal(reversePortal);
 
-        // Persist immediately: portals were only saved on the 5-minute
-        // autosave and on a clean shutdown, so a portal lit shortly
-        // before a restart or a crash was lost from portals.yml and the
-        // player had to rebuild it. Saving here closes that window.
         try {
             portalStorage.savePortals();
         }   catch(IOException | RuntimeException ex) {

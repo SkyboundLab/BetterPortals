@@ -59,8 +59,6 @@ public class WorldLink  {
     }
 
     private static int getMaxHeight(World world) {
-        // Dimension-keyed (see DimensionUtil): only the vanilla nether gets
-        // the 128 cap; datapack dimensions use their own max height.
         return com.lauriethefish.betterportals.bukkit.util.DimensionUtil.maxSpawnHeight(world, HeightUtil.getMaxHeight(world));
     }
 

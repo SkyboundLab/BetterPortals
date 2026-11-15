@@ -26,11 +26,6 @@ bukkit {
     description = 'Plugin which allows nether portals to be seen through, and allows custom portal creation'
     website = 'https://www.spigotmc.org/resources/betterportals.75409/'
     apiVersion = '26.3'
-    // Folia support: the plugin uses the region-aware schedulers (via the
-    // reflective FoliaScheduler helper, which falls back to the Bukkit
-    // scheduler on Spigot) for its tick loop, autosave, reconnect timer and
-    // entity work. See MODERNISATION-26.3.md for the honest limits of this
-    // claim: portal state is still shared mutable state across regions.
     foliaSupported = true
     author = 'lauriethefish@outlook.com'
     depend = ['ProtocolLib']

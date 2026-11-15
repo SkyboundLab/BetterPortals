@@ -8,14 +8,9 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Pure unit tests for the 26.3 modernisation work. None of these touch the
- * server: they cover the maths and key-based dimension logic only.
- */
 public class ModernisationTests {
     private static final double EPSILON = 1e-6;
 
-    // --- PortalMomentum / Matrix scale ---
 
     @Test
     public void testTransformVelocityIdentity() {
@@ -28,7 +23,6 @@ public class ModernisationTests {
 
     @Test
     public void testTransformVelocityRotatesAndScales() {
-        // NORTH -> EAST is a 90-degree rotation about Y: +X becomes -Z.
         Matrix rotation = Matrix.makeRotation(PortalDirection.NORTH, PortalDirection.EAST);
         Vector out = PortalMomentum.transformVelocity(new Vector(1, 0, 0), rotation, 2.0);
         assertEquals(0.0, out.getX(), EPSILON);
@@ -54,7 +48,6 @@ public class ModernisationTests {
         assertEquals(3.0, out.getZ(), EPSILON);
     }
 
-    // --- DimensionUtil (key-based, datapack-safe) ---
 
     @Test
     public void testDimensionKeys() {
@@ -62,7 +55,6 @@ public class ModernisationTests {
         assertTrue(DimensionUtil.isEndKey(new NamespacedKey("minecraft", "the_end")));
         assertTrue(DimensionUtil.isOverworldKey(new NamespacedKey("minecraft", "overworld")));
         assertFalse(DimensionUtil.isNetherKey(new NamespacedKey("minecraft", "overworld")));
-        // A datapack dimension is none of the vanilla three.
         assertFalse(DimensionUtil.isNetherKey(new NamespacedKey("mydatapack", "the_sift")));
         assertFalse(DimensionUtil.isEndKey(new NamespacedKey("mydatapack", "the_sift")));
         assertFalse(DimensionUtil.isOverworldKey(new NamespacedKey("mydatapack", "the_sift")));

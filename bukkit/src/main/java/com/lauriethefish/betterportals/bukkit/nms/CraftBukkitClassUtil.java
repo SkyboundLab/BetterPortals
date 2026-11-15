@@ -4,11 +4,9 @@ import com.lauriethefish.betterportals.shared.util.ReflectionUtil;
 import org.bukkit.Bukkit;
 
 /**
- * Bukkit (and nowadays Spigot as well) no longer always uses a versioned package for the craftbukkit classes.
- * This means we can no longer rely on the version segment being present, so we just use whatever package the server implementation is in.
  */
 public class CraftBukkitClassUtil {
-    private static final String craftBukkitClassPrefix; // E.g. org.bukkit.craftbukkit.
+    private static final String craftBukkitClassPrefix;
 
     static {
         String packageName = Bukkit.getServer().getClass().getPackage().getName();
@@ -18,7 +16,6 @@ public class CraftBukkitClassUtil {
     }
 
     /**
-     * Finds a class in the <code>org.bukkit.craftbukkit</code> package
      * @param name Name of the class relative to this package, with no dot at the start.
      * @return The located class
      */

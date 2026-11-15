@@ -148,8 +148,6 @@ public class PlayerDataManager implements IPlayerDataManager, Listener   {
                 request.getDestVelZ()
         );
 
-        // The velocity was already rotated/scaled by the sending server;
-        // re-apply it with the 26.2 momentum window so it survives landing.
         portalMomentum.teleportWithMomentum(player, destinationPosition, destinationVelocity, 1.0);
 
         player.setFlying(request.isFlying());

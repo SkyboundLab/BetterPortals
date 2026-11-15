@@ -14,9 +14,6 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Objects;
 
-/**
- * Helpers for working with tile entities that need to be sent to the client specially.
- */
 public class BlockDataUtil {
     private static final Method GET_HANDLE;
     private static final Method GET_BLOCK_ENTITY;
@@ -35,9 +32,6 @@ public class BlockDataUtil {
     }
 
     /**
-     * Finds the ProtocolLib wrapper around the <code>ClientboundBlockEntityDataPacket</code> which updates the tile entity data for <code>block</code>.
-     * @param block The block to get the update packet of
-     * @return The ProtocolLib wrapper, or <code>null</code> if the tile entity doesn't send an update packet
      */
     public static @Nullable PacketContainer getUpdatePacket(@NotNull Block block) {
         Object nmsLevel = getNmsLevel(block.getWorld());
@@ -57,7 +51,6 @@ public class BlockDataUtil {
     }
 
     /**
-     * Sets the position of a <code>ClientboundBlockEntityDataPacket</code> in both the NBT and packet itself
      * @param packet The packet to modify the position of
      * @param position The new position
      */

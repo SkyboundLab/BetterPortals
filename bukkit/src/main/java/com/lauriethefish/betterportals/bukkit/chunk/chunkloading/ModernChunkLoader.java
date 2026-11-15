@@ -19,17 +19,6 @@ public class ModernChunkLoader implements IChunkLoader {
         loadedChunks.add(new ChunkPosition(chunk));
     }
 
-    /**
-     * Force-loads a chunk by coordinates, without fetching the
-     * {@link Chunk} first. {@code ChunkPosition.getChunk()} loads the
-     * chunk synchronously on the calling thread; force-loading a portal's
-     * destination area that way stalled the server for 10s+ when the
-     * chunks were cold (2026-11-06 live test: watchdog dump in the
-     * portal view update, after activation had synchronously loaded the
-     * destination chunks). {@code World.setChunkForceLoaded} only
-     * tickets the chunk — the server loads it asynchronously and keeps
-     * it loaded — so activation no longer blocks the main thread.
-     */
     @Override
     public void setForceLoaded(@NotNull ChunkPosition chunk) {
         chunk.getWorld().setChunkForceLoaded(chunk.x, chunk.z, true);

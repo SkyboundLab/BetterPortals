@@ -54,12 +54,6 @@ public class PlayerEntityView implements IPlayerEntityView  {
 
         for(Entity entity : portal.getEntityList().getOriginEntities()) {
             if(entity == player) {continue;}
-            // Never hide our own Mannequin fakes: they are real entities
-            // standing behind the portal, so this check would otherwise
-            // send the viewer a destroy packet for them (2026-11-06 live
-            // test: the fake appeared for a second, then vanished). They
-            // are also filtered from the origin list itself; this is the
-            // second layer, in case one reaches here another way.
             if(mannequinManager.isFakePlayer(entity)) {continue;}
 
             // If the line from the player's position to the entity intersects the portal, then hide it since it'll spoil the effect by appearing in front of the blocks

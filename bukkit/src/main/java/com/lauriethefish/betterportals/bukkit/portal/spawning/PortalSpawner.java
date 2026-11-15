@@ -28,12 +28,6 @@ public class PortalSpawner implements IPortalSpawner {
     // How many blocks to force portals to spawn inside the border
     private static final double BORDER_PADDING = 10.0;
 
-    /**
-     * Radius of the destination search area, in blocks. Must match
-     * {@code AsyncPortalChecker.PORTAL_SEARCH_RADIUS}: the search area is
-     * force-loaded by {@link #forceLoadSearchArea} so the search can read
-     * it without loading chunks synchronously.
-     */
     private static final double SEARCH_AREA_RADIUS_BLOCKS = 128.0;
 
     private final JavaPlugin pl;
@@ -69,13 +63,6 @@ public class PortalSpawner implements IPortalSpawner {
         Location destinationPosition = limitByWorldBorder(rawDestPos);
         logger.fine("Preferred destination position: %s", destinationPosition.toVector());
 
-        // Ticket the whole search area by coordinates so the async search
-        // can read it. setChunkForceLoaded only tickets the chunk — the
-        // server loads it asynchronously — unlike the search's old
-        // getBlockAt/getChunk reads, which loaded (and generated) chunks
-        // synchronously on the main thread and stalled the server for
-        // seconds every time a portal was lit (2026-11-06 live test).
-        // Unticketed when the spawn chain finishes (see wrappedOnFinish).
         World destinationWorld = Objects.requireNonNull(destinationPosition.getWorld());
         Set<ChunkPosition> searchAreaTickets = forceLoadSearchArea(destinationWorld, destinationPosition);
         Consumer<PortalSpawnPosition> wrappedOnFinish = (position) -> {
@@ -110,15 +97,6 @@ public class PortalSpawner implements IPortalSpawner {
         return true;
     }
 
-    /**
-     * Tickets every chunk in the destination search area so the async
-     * search reads loaded chunks. Coordinates only — never fetches a
-     * {@link org.bukkit.Chunk}, so this never blocks the calling thread.
-     * Only tickets chunks that are not already force-loaded (e.g. by an
-     * admin or the portal chunk loader), so unticketing never removes
-     * someone else's ticket.
-     * @return The chunks this call ticketed, for {@link #unforceloadSearchArea}.
-     */
     private Set<ChunkPosition> forceLoadSearchArea(@NotNull World world, @NotNull Location center) {
         Set<ChunkPosition> ticketed = new HashSet<>();
         int radiusChunks = (int) Math.ceil(SEARCH_AREA_RADIUS_BLOCKS / 16.0);
@@ -135,7 +113,6 @@ public class PortalSpawner implements IPortalSpawner {
         return ticketed;
     }
 
-    /** Releases only the tickets from {@link #forceLoadSearchArea}. */
     private void unforceloadSearchArea(@NotNull World world, @NotNull Set<ChunkPosition> ticketed) {
         for(ChunkPosition chunk : ticketed) {
             world.setChunkForceLoaded(chunk.x, chunk.z, false);

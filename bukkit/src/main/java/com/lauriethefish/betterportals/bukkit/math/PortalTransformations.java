@@ -14,20 +14,6 @@ import org.bukkit.util.Vector;
 
 /**
  * Handles the matrices used for transforming coordinates around the origin and destination of portals.
- *
- * <p>Scale/rotation transforms (Immersive Portals-style scaled portals):
- * a portal may have a scale factor (from config, see
- * {@link RenderConfig#getPortalScale(String)}) and a roll angle
- * ({@link RenderConfig#getPortalRollDegrees()}). The scale is applied
- * around the portal centre, between the origin translation and the
- * rotation: {@code originToDestination = T(dest) * R * S * T(-origin)}.
- * Positions, velocities and the fake-block projection all go through the
- * scaled matrices, so a 0.5× portal really does show the destination at
- * half size and shrink your velocity to match. This is an approximation
- * in one place: fake blocks live on an integer grid, so the scaled
- * projection is rounded to whole blocks ({@link Matrix#transform(int, int, int)}).
- * Directions (look vectors) are never scaled — only rotated — since a
- * direction must stay a unit vector.
  */
 public class PortalTransformations {
     private final PortalPosition originPos;
@@ -35,9 +21,7 @@ public class PortalTransformations {
     private final RenderConfig renderConfig;
     private final Vector portalSize;
 
-    /** Uniform scale factor of this portal (1.0 = unscaled). */
     @Getter private final double scale;
-    /** Extra roll about the portal normal, in degrees (0 = none). */
     @Getter private final double rollDegrees;
 
     @Getter private final Matrix originToDestination; // Translates a vector from the origin of the portal to its destination
@@ -66,13 +50,10 @@ public class PortalTransformations {
             applyDinnerbone();
         }
 
-        // Optional roll about the portal normal, on top of the axis-aligned rotation
         if(rollDegrees != 0.0) {
             applyRoll(rollDegrees);
         }
 
-        // Scale is applied around the portal centre: translate to the origin,
-        // scale, rotate, then translate to the destination.
         Matrix scaleMatrix = Matrix.makeScale(scale);
         Matrix inverseScaleMatrix = Matrix.makeScale(1.0 / scale);
 
@@ -90,9 +71,6 @@ public class PortalTransformations {
         destinationWorld = destPos.getWorld();
     }
 
-    /**
-     * Rolls the portal view around its normal axis. Does nothing for a 0° roll.
-     */
     private void applyRoll(double rollDegrees) {
         double rollRadians = Math.toRadians(rollDegrees);
         Vector destAxis = destPos.getDirection().toVector();
@@ -167,36 +145,14 @@ public class PortalTransformations {
         return rotateToDestination.transform(vec);
     }
 
-    /**
-     * Rotates <i>and scales</i> a vector (an offset or a velocity) from the
-     * origin coordinate space to the destination coordinate space.
-     * Use this for anything with a magnitude; directions must use
-     * {@link #rotateToDestination(Vector)} instead so they stay unit vectors.
-     * @param vec The vector to transform
-     * @return The rotated, scaled vector in the destination coordinate space
-     */
     public Vector rotateAndScaleToDestination(Vector vec) {
         return rotateToDestination.transform(vec).multiply(scale);
     }
 
-    /**
-     * Rotates <i>and scales</i> a vector from the destination coordinate
-     * space to the origin coordinate space (inverse scale).
-     * @param vec The vector to transform
-     * @return The rotated, inversely-scaled vector in the origin coordinate space
-     */
     public Vector rotateAndScaleToOrigin(Vector vec) {
         return rotateToOrigin.transform(vec).multiply(1.0 / scale);
     }
 
-    /**
-     * The rotation-plus-scale matrix used by the fake-block projection
-     * ({@link com.lauriethefish.betterportals.bukkit.block.FloodFillBlockMap}):
-     * destination-relative block offsets are rotated <i>and</i> scaled, then
-     * rounded to the integer block grid — the approximation at the heart of
-     * scaled portals.
-     * @return Rotation * scale, origin → destination
-     */
     public Matrix getRotateAndScaleToDestination() {
         return rotateToDestination.multiply(Matrix.makeScale(scale));
     }
@@ -216,7 +172,7 @@ public class PortalTransformations {
      * @return The intersection checker
      */
     public PlaneIntersectionChecker createIntersectionChecker(Vector rayOrigin) {
-        Vector planeSize = portalSize.clone().multiply(0.5 * scale); // The size for the intersection checker is a radius, so we half this since it's the size of the full portal window; scaled portals have a scaled window
+        Vector planeSize = portalSize.clone().multiply(0.5 * scale);
         planeSize = originPos.getDirection().swapVector(planeSize); // Must be on the Z and Y, or Z and X if horizontal (portal's sizes always use the XZ, but we don't want this here)
 
         Vector collisionBoxOffset = originPos.getDirection().swapVector(renderConfig.getCollisionBox());

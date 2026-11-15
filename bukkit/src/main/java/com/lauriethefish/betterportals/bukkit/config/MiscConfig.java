@@ -18,14 +18,6 @@ public class MiscConfig {
     @Getter private boolean entitySupportEnabled;
     @Getter private int entityCheckInterval;
 
-    /**
-     * If true, non-player entities (mobs, items, minecarts, ...) are checked
-     * for portal teleportation even when no player is near the portal.
-     * Vanilla teleports any entity standing in portal blocks in a loaded
-     * chunk; without this, a portal only teleports mobs while a player is
-     * within portalActivationDistance, so chunk-loaded farms stall.
-     * Disable only to save the per-portal scan on very large servers.
-     */
     @Getter private boolean nonPlayerTeleportationWithoutPlayers;
 
     @Getter private int teleportCooldown;
@@ -35,13 +27,10 @@ public class MiscConfig {
 
     @Getter private int portalSaveInterval;
 
-    /** If true, players seen through portals are rendered as real Mannequin entities instead of PLAYER_INFO + spawn packets. */
     @Getter private boolean useMannequinFakePlayers;
 
-    /** If true, teleporting through a portal preserves momentum using the 26.2 physics attributes (see PortalMomentum). */
     @Getter private boolean preserveMomentum;
 
-    /** How many ticks the drag-free/bouncy momentum window lasts after a teleport. */
     @Getter private int momentumDragFreeTicks;
 
     @Inject
@@ -55,9 +44,6 @@ public class MiscConfig {
 
         boolean disableEntityCheckInterval = config.getBoolean("checkForEntitiesEveryTick");
         entityCheckInterval = disableEntityCheckInterval ? 1 : config.getInt("entityCheckInterval");
-        // getBoolean with an explicit default: older config files that predate
-        // this key must keep the vanilla-parity behaviour (on), not silently
-        // turn it off.
         nonPlayerTeleportationWithoutPlayers = config.getBoolean("nonPlayerTeleportationWithoutPlayers", true);
         updateCheckEnabled = config.getBoolean("enableUpdateCheck");
 
@@ -75,9 +61,6 @@ public class MiscConfig {
         testingCommandsEnabled = config.getBoolean("enableTestingCommands");
         portalSaveInterval = config.getInt("portalSaveInterval");
 
-        // getBoolean/getInt with explicit defaults: older config files that
-        // predate these keys must not silently turn the features off (or
-        // set the window to 0 ticks).
         useMannequinFakePlayers = config.getBoolean("mannequinFakePlayers", true);
         preserveMomentum = config.getBoolean("preserveMomentum", true);
         momentumDragFreeTicks = config.getInt("momentumDragFreeTicks", 10);

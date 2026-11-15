@@ -159,7 +159,6 @@ public class PortalClient implements IPortalClient {
             throw new IllegalStateException("Received response for request that didn't exist");
         }
 
-        // Call it on the main/global thread (GlobalRegionScheduler on Folia/Paper)
         FoliaScheduler.runGlobalDelayed(pl, () -> waiter.accept(response), 0);
     }
 

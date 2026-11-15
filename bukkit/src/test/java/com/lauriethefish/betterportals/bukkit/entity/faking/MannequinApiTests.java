@@ -4,14 +4,6 @@ import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.*;
 
-/**
- * Tests for the Mannequin API adapter ({@link MannequinFakePlayerManager.MannequinApi}).
- * These run against the compile-time (Spigot) API, so they assert the
- * Spigot variant resolves there. The Paper variant (setProfile /
- * ResolvableProfile / Component description) cannot be exercised from
- * this classpath — it is verified separately against the real Paper
- * 26.3-244 API jar, where the Spigot variant must NOT resolve.
- */
 public class MannequinApiTests {
     @Test
     public void testSpigotVariantResolves() {
