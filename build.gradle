@@ -22,7 +22,6 @@ allprojects {
         maven { url 'https://central.sonatype.com/repository/maven-snapshots/' }
         maven { url 'https://repo.papermc.io/repository/maven-public/' }
         maven { url 'https://hub.spigotmc.org/nexus/content/repositories/snapshots/' }
-        // ProtocolLib snapshot builds (26.3 support)
         maven { url 'https://repo.dmulloy2.net/nexus/repository/public/' }
     }
 

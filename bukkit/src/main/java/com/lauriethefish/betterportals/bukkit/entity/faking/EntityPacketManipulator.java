@@ -100,7 +100,6 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
 
             if(currentDirection != null) {
                 EnumWrappers.Direction rotated = RotationUtil.rotateBy(currentDirection, entityInfo.getRotation());
-                // Make sure to catch this - it should never happen unless something's gone very wrong
                 if (rotated == null) {
                     throw new IllegalStateException("Portal attempted to rotate a hanging entity to an invalid block direction");
                 }
@@ -108,7 +107,6 @@ public class EntityPacketManipulator implements IEntityPacketManipulator {
             }
         }
 
-        // Set the modified pitch and yaw (xRot, yRot)
         packet.getBytes().write(0, (byte) pitch);
         packet.getBytes().write(1, (byte) yaw);
     }

@@ -9,30 +9,16 @@ import org.jetbrains.annotations.NotNull;
 import java.lang.reflect.Constructor;
 import java.util.Collections;
 
-/**
- * Version specific NMS packet construction.
- * This class only exists because the packet format for some packets (e.g. entity teleports) changed significantly in 26.x,
- * so building them with ProtocolLib's generic field accessors is no longer possible.
- * All methods return the raw NMS packet, to send one wrap it in a {@link com.comphenix.protocol.events.PacketContainer} with {@code PacketContainer.fromPacket}.
- */
+// Some packet formats changed in 26.x, so ProtocolLib's generic field accessors no longer work; packets are built as raw NMS objects here
 public final class PacketFactory {
-    // Vec3
     private static final Constructor<?> VEC3_CTOR;
-    // PositionMoveRotation(Vec3, Vec3, float, float)
     private static final Constructor<?> POSITION_MOVE_ROTATION_CTOR;
-    // ClientboundTeleportEntityPacket(int, PositionMoveRotation, Set<Relative>, boolean)
     private static final Constructor<?> TELEPORT_CTOR;
-    // VecDelta$Linear(short, short, short)
     private static final Constructor<?> VEC_DELTA_LINEAR_CTOR;
-    // ClientboundMoveEntityPacket$Pos(int, VecDelta, boolean)
     private static final Constructor<?> MOVE_POS_CTOR;
-    // ClientboundMoveEntityPacket$Rot(int, byte, byte, boolean)
     private static final Constructor<?> MOVE_ROT_CTOR;
-    // ClientboundMoveEntityPacket$PosRot(int, VecDelta, byte, byte, boolean)
     private static final Constructor<?> MOVE_POS_ROT_CTOR;
-    // ClientboundRemoveEntitiesPacket(int...)
     private static final Constructor<?> REMOVE_ENTITIES_CTOR;
-    // ClientboundSetEntityMotionPacket(int, Vec3)
     private static final Constructor<?> SET_ENTITY_MOTION_CTOR;
 
     static {
@@ -67,14 +53,6 @@ public final class PacketFactory {
     private PacketFactory() {
     }
 
-    /**
-     * Creates a {@code ClientboundTeleportEntityPacket} for an entity
-     * @param entityId The ID to give the fake entity
-     * @param position The absolute position to teleport to
-     * @param yaw The rotation around the y axis, in degrees
-     * @param pitch The rotation around the x axis, in degrees
-     * @param onGround Whether the entity is on the ground
-     */
     public static Object teleportEntity(int entityId, @NotNull Location position, float yaw, float pitch, boolean onGround) {
         // All positions and rotations are absolute (no relative flags)
         Object pos = createVec3(position.getX(), position.getY(), position.getZ());
@@ -84,56 +62,28 @@ public final class PacketFactory {
         return invokeConstructorChecked(TELEPORT_CTOR, entityId, change, Collections.<Object>emptySet(), onGround);
     }
 
-    /**
-     * Creates a {@code ClientboundMoveEntityPacket$Pos} packet, which moves an entity relative to its current position
-     * @param entityId The ID of the entity to move
-     * @param offset The relative offset, in blocks
-     * @param onGround Whether the entity is on the ground
-     */
     public static Object moveEntity(int entityId, @NotNull Vector offset, boolean onGround) {
         Object delta = createVecDelta(offset);
 
         return invokeConstructorChecked(MOVE_POS_CTOR, entityId, delta, onGround);
     }
 
-    /**
-     * Creates a {@code ClientboundMoveEntityPacket$Rot} packet, which rotates an entity
-     * @param entityId The ID of the entity to rotate
-     * @param yaw Yaw, multiplied by 256/360 (as per the packet format)
-     * @param pitch Pitch, multiplied by 256/360 (as per the packet format)
-     * @param onGround Whether the entity is on the ground
-     */
+    // yaw/pitch are angle * 256/360, as in the packet format
     public static Object lookEntity(int entityId, int yaw, int pitch, boolean onGround) {
         return invokeConstructorChecked(MOVE_ROT_CTOR, entityId, (byte) yaw, (byte) pitch, onGround);
     }
 
-    /**
-     * Creates a {@code ClientboundMoveEntityPacket$PosRot} packet, which moves and rotates an entity
-     * @param entityId The ID of the entity to move
-     * @param offset The relative offset, in blocks
-     * @param yaw Yaw, multiplied by 256/360 (as per the packet format)
-     * @param pitch Pitch, multiplied by 256/360 (as per the packet format)
-     * @param onGround Whether the entity is on the ground
-     */
+    // yaw/pitch are angle * 256/360, as in the packet format
     public static Object moveLookEntity(int entityId, @NotNull Vector offset, int yaw, int pitch, boolean onGround) {
         Object delta = createVecDelta(offset);
 
         return invokeConstructorChecked(MOVE_POS_ROT_CTOR, entityId, delta, (byte) yaw, (byte) pitch, onGround);
     }
 
-    /**
-     * Creates a {@code ClientboundRemoveEntitiesPacket} packet
-     * @param entityIds The IDs of the entities to remove
-     */
     public static Object removeEntities(int... entityIds) {
         return invokeConstructorChecked(REMOVE_ENTITIES_CTOR, (Object) entityIds);
     }
 
-    /**
-     * Creates a {@code ClientboundSetEntityMotionPacket} packet
-     * @param entityId The ID of the entity
-     * @param velocity The velocity of the entity, in blocks per tick
-     */
     public static Object setEntityMotion(int entityId, @NotNull Vector velocity) {
         Object motion = createVec3(velocity.getX(), velocity.getY(), velocity.getZ());
 

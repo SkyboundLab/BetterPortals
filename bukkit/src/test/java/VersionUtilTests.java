@@ -28,7 +28,6 @@ public class VersionUtilTests {
 
     @Test
     public void newVersioningTest() {
-        // The 26.x versioning scheme must compare correctly against both itself and 1.x versions
         assertTrue(VersionUtil.isVersionGreaterOrEq("26.3-R0.1-SNAPSHOT", "1.21.0"));
         assertTrue(VersionUtil.isVersionGreaterOrEq("26.3-R0.1-SNAPSHOT", "1.19.0"));
         assertTrue(VersionUtil.isVersionGreaterOrEq("26.3", "26.3"));

@@ -14,7 +14,6 @@ public interface IBlockChangeWatcher {
     /**
      * Checks for any changes in the configured area.
      * This will return all blocks in the area the first time it is called on one instance.
-     * @return The new block data, as a string (See {@link org.bukkit.block.data.BlockData#getAsString()})
      */
     @NotNull Map<IntVector, String> checkForChanges();
 

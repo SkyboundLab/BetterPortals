@@ -62,12 +62,6 @@ public class MessageConfig {
         return translateHexColors(message);
     }
 
-    /**
-     * Converts a <code>#rrggbb</code> hex string into the legacy section-sign format that vanilla clients understand.
-     * @param hexString The hex colour to convert, e.g. <code>#ff0000</code>
-     * @return The legacy formatted colour, e.g. <code>§x§f§f§0§0§0§0</code>
-     * @throws IllegalArgumentException If the string is not a valid hex colour
-     */
     private @NotNull String toLegacyHexColor(@NotNull String hexString) {
         String digits = hexString.startsWith("#") ? hexString.substring(1) : hexString;
         if (digits.length() != 6) {
@@ -149,7 +143,6 @@ public class MessageConfig {
             meta.setDisplayName(portalWandName);
 
             portalWand.setItemMeta(meta);
-            // Portal wand checking is done with a persistent data marker
             portalWand = ItemMarkerUtil.addMarkerTag(portalWand, PORTAL_WAND_TAG);
         }
 
